@@ -1,0 +1,566 @@
+# RailSync
+
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-Frontend-61DAFB)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-Build-646CFF)](https://vitejs.dev/)
+
+RailSync is a simulated, AI-assisted railway traffic control system built
+around a Tamil Nadu train network. It combines a FastAPI backend, a React
+and Vite frontend, a live simulation engine, a delay prediction model,
+conflict detection, controller overrides, decision logging, and an
+optional LLM narration layer.
+
+In one line: RailSync is a control-room demo for predicting train delay,
+detecting conflicts, and managing platform decisions with a human-in-the-loop
+workflow.
+
+The project is designed as a demoable control-room style application with
+two views:
+
+- Controller View for admins and traffic managers
+- Passenger View for public, read-only status information
+
+## Contents
+
+- [What This Project Does](#what-this-project-does)
+- [Tech Stack](#tech-stack)
+- [Repository Structure](#repository-structure)
+- [High-Level Architecture](#high-level-architecture)
+- [Backend Overview](#backend-overview)
+- [Backend Behavior](#backend-behavior)
+- [Frontend Overview](#frontend-overview)
+- [API Endpoints](#api-endpoints)
+- [ML Pipeline](#ml-pipeline)
+- [Environment Variables](#environment-variables)
+- [Local Setup](#local-setup)
+- [Screenshots](#screenshots)
+- [Verification Notes](#verification-notes)
+- [Deployment Summary](#deployment-summary)
+- [Known Limitations](#known-limitations)
+- [Why This Project Is Useful](#why-this-project-is-useful)
+- [Quick Start](#quick-start)
+
+## What This Project Does
+
+RailSync simulates trains moving across a fixed railway network and
+continuously:
+
+- predicts delay using an XGBoost model
+- tracks train state transitions such as moving, waiting, boarding, and
+  completed
+- detects section-level conflicts
+- assigns and releases platforms at stations
+- resumes waiting trains when a platform becomes free
+- computes priority scores for conflict resolution
+- supports controller approval and override actions
+- records decisions in a log
+- shows a live map, station boards, analytics, and what-if simulation
+  tools
+
+The network is simulated, but the station locations and route geography are
+based on real Tamil Nadu stations and approximate real coordinates.
+
+## Tech Stack
+
+### Backend
+
+- Python
+- FastAPI
+- Uvicorn
+- WebSockets
+- Pydantic
+- python-dotenv
+- Requests
+- Firebase Admin SDK
+- XGBoost
+- scikit-learn
+- pandas
+- numpy
+- joblib
+
+### Frontend
+
+- React 18
+- Vite
+- React Leaflet
+- Leaflet
+- Recharts
+
+## Screenshots
+
+Add screenshots here once you capture them from a running browser session.
+Suggested images:
+
+- controller view with live map and conflicts panel
+- passenger view with platform board
+- analytics dashboard
+- what-if simulator output
+
+Example:
+
+```md
+![Controller View](docs/images/controller-view.png)
+![Passenger View](docs/images/passenger-view.png)
+```
+
+### ML and Data
+
+- Synthetic dataset generation with pandas and numpy
+- XGBoost regression model for delay prediction
+- LabelEncoder-based categorical preprocessing
+- Saved model artifacts in `backend/app/models/`
+
+### External Services
+
+- OpenStreetMap tiles for the map
+- Firebase Firestore for persistent decision logs
+- Groq API for optional narration of decisions
+- Ollama for optional local narration fallback
+
+## Repository Structure
+
+```text
+railsync_final/
+  backend/
+    app/
+      main.py
+      simulator.py
+      resolver.py
+      conflict_detection.py
+      platform_manager.py
+      network.py
+      model_loader.py
+      llm_narration.py
+      database.py
+      models/
+        xgb_delay_model.pkl
+        label_encoders.pkl
+        feature_columns.pkl
+    requirements.txt
+  frontend/
+    src/
+      App.jsx
+      api.js
+      LiveMap.jsx
+      admin/
+      user/
+      styles/theme.css
+    package.json
+  datasets/
+    generate_dataset.py
+    train_dataset_full.csv
+    test_dataset_full.csv
+    train_dataset_model_ready.csv
+    test_dataset_model_ready.csv
+  ml/
+    train_xgboost.py
+  docs/
+    SETUP_AND_VERIFICATION.md
+    PRD_v2.md
+    MASTER_SETUP_CHECKLIST.md
+```
+
+## High-Level Architecture
+
+### 1. Simulation core
+
+The backend owns a `Simulator` instance that advances simulated time,
+updates train positions, predicts delays, resolves station/platform
+contention, and exposes current state through HTTP and WebSocket
+endpoints.
+
+### 2. Network model
+
+The network is static and defined in `backend/app/network.py`.
+
+- stations include latitude, longitude, and platform counts
+- sections include distance and a drawn path for map rendering
+- train definitions include train number, name, type, route, and stop
+  list
+
+### 3. State machine
+
+Each train is represented by a `TrainState` object with these statuses:
+
+- `moving`
+- `checking`
+- `waiting`
+- `held`
+- `at_platform`
+- `completed`
+
+The system is not just moving markers on a map. It explicitly simulates
+arrival checks, platform occupation, queueing, and departure.
+
+### 4. Conflict handling
+
+RailSync currently focuses on section-level conflict detection in the
+backend API flow and platform-level queueing inside the platform manager.
+
+When multiple trains compete for the same section, the resolver selects the
+winner based on priority score and returns an explainable recommendation.
+
+### 5. Decision narration
+
+The ML reasoning can be turned into a short English explanation using:
+
+- Groq hosted LLMs when `GROQ_API_KEY` is available
+- Ollama locally when configured
+- the original rule-based text when no LLM is available
+
+### 6. Frontend views
+
+The frontend renders the live system in two modes:
+
+- Admin Panel
+- User Panel
+
+Both views share the same live map and simulation feed, but expose
+different controls and information density.
+
+## Backend Overview
+
+### Main entry point
+
+`backend/app/main.py` creates the FastAPI app, configures CORS, starts the
+simulator, and exposes the REST and WebSocket endpoints.
+
+### Important backend modules
+
+- `main.py` - API routes, WebSocket stream, simulation controls, decision
+  approval, what-if simulation
+- `simulator.py` - core train simulation loop and state transitions
+- `models.py` - train state model and priority scoring
+- `network.py` - station, section, and train definitions
+- `platform_manager.py` - platform occupancy, queues, resume behavior, and
+  events
+- `conflict_detection.py` - section conflict detection
+- `resolver.py` - priority-based conflict resolution
+- `model_loader.py` - delay model loading and fallback prediction
+- `llm_narration.py` - optional decision narration
+- `database.py` - Firestore-backed decision log with in-memory fallback
+
+## Backend Behavior
+
+### Simulation loop
+
+The simulator advances time on every tick, updates each active train,
+predicts delay, and checks for conflicts.
+
+Key runtime behaviors:
+
+- trains move between stations based on section distances and speed
+- arrival is checked near the end of a section
+- trains stop at a station only if that station is in their stop list
+- if no platform is available, the train enters `waiting`
+- when a platform is released, the highest-priority waiting train resumes
+  automatically
+- starvation is prevented by a max wait threshold
+
+### Priority scoring
+
+Priority is computed from:
+
+- train type weight
+- predicted delay
+- wait time
+- a deterministic tiebreaker based on train number
+
+This makes conflict resolution explainable and stable.
+
+### Delay prediction
+
+The backend loads a trained XGBoost regression model if the files exist in:
+
+`backend/app/models/`
+
+If the model files are missing or disabled, the app falls back to a
+heuristic predictor so the system still runs.
+
+### Decision logging
+
+The decision log is stored in Firestore when Firebase is configured.
+
+Fallback behavior:
+
+- if Firebase credentials are missing, the backend stores logs in memory
+- the UI still works
+- logs do not persist across restarts in fallback mode
+
+## Frontend Overview
+
+### Entry point
+
+`frontend/src/main.jsx` loads the global stylesheet and mounts the React
+app.
+
+### App shell
+
+`frontend/src/App.jsx`:
+
+- fetches the static network
+- opens the live WebSocket stream
+- tracks connection state
+- toggles between Controller View and Passenger View
+
+### Shared live map
+
+`frontend/src/LiveMap.jsx` uses:
+
+- React Leaflet
+- OpenStreetMap tiles
+- section polylines
+- station markers
+- moving train markers
+
+Train positions are interpolated along the section path using the current
+simulated progress.
+
+### Admin UI
+
+The admin area includes:
+
+- `AdminPanel.jsx`
+- `StationDetail.jsx`
+- `ConflictPanel.jsx`
+- `DecisionLog.jsx`
+- `WhatIfSimulator.jsx`
+- `AnalyticsDashboard.jsx`
+- `SimulationControls.jsx`
+
+These components provide:
+
+- station inspection
+- active conflict review
+- approve/reject actions
+- decision history
+- delay injection experiments
+- aggregate analytics
+- pause/resume/speed control
+
+### Passenger UI
+
+The passenger area includes:
+
+- `UserPanel.jsx`
+- `PlatformView.jsx`
+- `TrainSearch.jsx`
+
+These components provide:
+
+- a simplified platform board
+- upcoming train arrivals
+- train lookup by number or name
+- read-only live status
+
+## API Endpoints
+
+### REST
+
+- `GET /` - health check and model loaded status
+- `GET /api/network` - station, section, and train metadata
+- `GET /api/state` - full live simulator state
+- `GET /api/analytics` - aggregate counters and delay totals
+- `GET /api/model-info` - model loaded flag and feature importance
+- `GET /api/logs` - decision log entries, optional `train_no` filter
+- `POST /api/whatif` - simulate extra delay for a train
+- `POST /api/decisions/approve` - approve or reject a conflict
+  recommendation
+- `POST /api/override` - apply a manual override action
+- `POST /api/simulation/pause` - pause the simulation
+- `POST /api/simulation/resume` - resume the simulation
+- `POST /api/simulation/reset` - reset the simulation
+- `POST /api/simulation/speed` - change the speed multiplier
+
+### WebSocket
+
+- `ws://127.0.0.1:8000/ws/live`
+
+The live socket streams the full simulation state continuously.
+
+## ML Pipeline
+
+### Dataset generation
+
+`datasets/generate_dataset.py` creates synthetic train-trip rows with:
+
+- train type
+- origin station
+- destination station
+- day of week
+- number of stops
+- speed
+- prior delay
+- congestion level
+- hour of day
+- target delay
+
+It also produces full datasets and model-ready datasets with canceled
+trips removed from the regression target.
+
+### Training script
+
+`ml/train_xgboost.py`:
+
+- loads the model-ready CSVs
+- encodes categorical features
+- trains an `XGBRegressor`
+- evaluates the model
+- saves three artifacts:
+  - `xgb_delay_model.pkl`
+  - `label_encoders.pkl`
+  - `feature_columns.pkl`
+
+### Runtime prediction
+
+At runtime, the backend builds a feature row from:
+
+- train type
+- origin station
+- destination station
+- day of week
+- number of stops
+- speed
+- prior delay
+- congestion level
+- hour of day
+
+Then it predicts delay for the current simulated state.
+
+## Environment Variables
+
+### Backend
+
+- `CORS_ALLOWED_ORIGINS` - comma-separated frontend origins
+- `SIMULATION_TICK_SECONDS` - WebSocket tick interval
+- `DELAY_MODEL_ENABLED` - enable or disable the trained delay model
+- `FIREBASE_ENABLED` - turn Firestore logging on or off
+- `FIREBASE_CREDENTIALS_JSON` - Firestore service account JSON as text
+- `FIREBASE_CREDENTIALS_PATH` - local path to a credentials JSON file
+- `GROQ_API_KEY` - enables Groq narration
+- `GROQ_MODEL` - Groq model name
+- `LLM_PROVIDER` - `auto`, `groq`, or `ollama`
+- `OLLAMA_URL` - local Ollama endpoint
+- `OLLAMA_MODEL` - local model name
+- `OLLAMA_TIMEOUT_SECONDS` - Ollama request timeout
+
+### Frontend
+
+- `VITE_API_URL` - backend HTTP base URL
+- `VITE_WS_URL` - backend WebSocket base URL
+
+## Local Setup
+
+### 1. Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Create `backend/.env` manually with the variables you need. The app runs
+without every optional integration, but Firebase, Groq, and Ollama all need
+their respective environment variables if you want those features.
+
+### 2. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open:
+
+- `http://localhost:5173`
+
+### 3. Optional model retraining
+
+```bash
+cd ml
+python train_xgboost.py
+```
+
+This regenerates the model artifacts used by the backend.
+
+## Verification Notes
+
+The repository includes setup and verification guidance in:
+
+- `docs/SETUP_AND_VERIFICATION.md`
+- `docs/MASTER_SETUP_CHECKLIST.md`
+
+Those documents explain:
+
+- what was tested
+- how to start the app
+- how the model is trained
+- how to configure Firebase
+- how to enable Groq narration
+- how to deploy backend and frontend separately
+
+## Deployment Summary
+
+The intended deployment path is:
+
+- backend on Railway
+- frontend on Vercel
+
+In that setup:
+
+- set the backend start command to run Uvicorn
+- configure CORS to allow the frontend URL
+- set the frontend API and WebSocket URLs to the deployed backend
+- store Firebase credentials and Groq credentials as environment
+  variables
+
+## Known Limitations
+
+- The network is intentionally small and demo-oriented
+- Train positions are calculated, not GPS-tracked
+- The project uses simulated demand and simulated delay prediction inputs
+- Decision log persistence depends on Firebase setup
+- LLM narration is optional and falls back to the template reason if
+  unavailable
+
+## Why This Project Is Useful
+
+RailSync is a useful prototype because it shows how a traffic-control
+workflow can combine:
+
+- real geography
+- live state visualization
+- explainable AI
+- deterministic safety rules
+- human approval
+- audit logging
+
+That makes it a strong demo for operations, optimization, and simulation
+scenarios.
+
+## Quick Start
+
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+
+# Frontend
+cd frontend
+npm install
+npm run dev
+```
+
+Then open:
+
+- `http://localhost:5173`
+
+## Notes
+
+This README is intentionally detailed so the project is easier to
+understand for reviewers, teammates, and future maintenance work. If you
+want, I can also turn this into a cleaner polished README with badges, a
+table of contents, and screenshots section next.
