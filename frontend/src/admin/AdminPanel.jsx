@@ -9,7 +9,7 @@ import SimulationControls from './SimulationControls.jsx'
 
 const TABS = ['Station', 'Conflicts', 'Log', 'Analytics']
 
-export default function AdminPanel({ liveState, network, networkError, connected }) {
+export default function AdminPanel({ liveState, network, networkError, connected, modelInfo }) {
   const [activeTab, setActiveTab] = useState('Conflicts')
   const [selectedStation, setSelectedStation] = useState(null)
 
@@ -62,7 +62,7 @@ export default function AdminPanel({ liveState, network, networkError, connected
           {activeTab === 'Log' && <DecisionLog />}
           {activeTab === 'Analytics' && (
             <>
-              <AnalyticsDashboard />
+              <AnalyticsDashboard modelInfo={modelInfo} />
               <div style={{ marginTop: 14 }}>
                 <WhatIfSimulator liveState={liveState} />
               </div>

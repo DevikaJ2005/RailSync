@@ -1,15 +1,14 @@
-# Python
-__pycache__/
-*.pyc
-.venv/
-
-# Env / secrets
+# Local env and secrets
 .env
-firebase-key.json
+**/.env
+backend/.env
+frontend/.env
+backend/firebase-key.json
 
-# Node
+# Node / build artifacts
 node_modules/
 dist/
 
-# OS
-.DS_Store
+# Python
+__pycache__/
+*.pyc

@@ -14,6 +14,7 @@ MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
 MODEL_PATH = os.path.join(MODEL_DIR, "xgb_delay_model.pkl")
 ENCODERS_PATH = os.path.join(MODEL_DIR, "label_encoders.pkl")
 FEATURES_PATH = os.path.join(MODEL_DIR, "feature_columns.pkl")
+METRICS_PATH = os.path.join(MODEL_DIR, "metrics.json")
 
 CATEGORICAL_COLS = ["train_type", "origin_station", "destination_station", "day_of_week"]
 NUMERIC_COLS = ["num_stops", "speed_kmph", "prior_delay_min", "congestion_level", "hour_of_day"]
@@ -22,10 +23,11 @@ _model = None
 _encoders = None
 _feature_cols = None
 _loaded = False
+_metrics = {}
 
 
 def load_model():
-    global _model, _encoders, _feature_cols, _loaded
+    global _model, _encoders, _feature_cols, _loaded, _metrics
     model_enabled = os.getenv("DELAY_MODEL_ENABLED", "true").lower() in ("1", "true", "yes", "on")
     if not model_enabled:
         _loaded = False
@@ -38,6 +40,11 @@ def load_model():
         _model = joblib.load(MODEL_PATH)
         _encoders = joblib.load(ENCODERS_PATH)
         _feature_cols = joblib.load(FEATURES_PATH)
+        if os.path.exists(METRICS_PATH):
+            import json
+
+            with open(METRICS_PATH, encoding="utf-8") as metrics_file:
+                _metrics = json.load(metrics_file)
         _loaded = True
         print("[model_loader] Trained XGBoost model loaded.")
     else:
@@ -80,6 +87,10 @@ def get_feature_importance() -> dict:
         return {}
     importance = dict(zip(_feature_cols, _model.feature_importances_.tolist()))
     return dict(sorted(importance.items(), key=lambda x: x[1], reverse=True))
+
+
+def get_model_metrics() -> dict:
+    return _metrics
 
 
 load_model()

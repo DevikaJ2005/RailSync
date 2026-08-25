@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { api } from '../api.js'
 
-export default function AnalyticsDashboard() {
+export default function AnalyticsDashboard({ modelInfo }) {
   const [analytics, setAnalytics] = useState(null)
 
   useEffect(() => {
@@ -32,6 +32,23 @@ export default function AnalyticsDashboard() {
 
   return (
     <div>
+      <div className="panel" style={{ marginBottom: 14 }}>
+        <div className="panel-title">Delay Model Performance</div>
+        {modelInfo?.metrics?.mae_min != null ? (
+          <div style={{ display: 'flex', gap: 10 }}>
+            {stat('MAE', `${modelInfo.metrics.mae_min} min`, 'var(--signal-green)')}
+            {stat('RMSE', `${modelInfo.metrics.rmse_min} min`, 'var(--signal-amber)')}
+            {stat('R²', modelInfo.metrics.r2, 'var(--rail-blue)')}
+          </div>
+        ) : (
+          <div className="empty-state">Evaluation metrics unavailable</div>
+        )}
+        {modelInfo?.metrics?.test_rows != null && (
+          <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 10 }}>
+            Holdout test set: {modelInfo.metrics.test_rows.toLocaleString()} trips | XGBoost regression
+          </div>
+        )}
+      </div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
         {stat('Conflicts Detected', analytics.conflicts_detected)}
         {stat('Conflicts Resolved', analytics.conflicts_resolved, 'var(--signal-green)')}

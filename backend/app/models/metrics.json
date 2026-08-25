@@ -1,0 +1,7 @@
+{
+  "mae_min": 7.72,
+  "rmse_min": 10.38,
+  "r2": 0.45,
+  "train_rows": 7800,
+  "test_rows": 1948
+}

@@ -14,6 +14,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import LabelEncoder
 import joblib
 import os
+import json
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "datasets")
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "backend", "app", "models")
@@ -49,10 +50,17 @@ model = XGBRegressor(
 model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
 
 preds = model.predict(X_test)
+metrics = {
+    "mae_min": round(float(mean_absolute_error(y_test, preds)), 2),
+    "rmse_min": round(float(np.sqrt(mean_squared_error(y_test, preds))), 2),
+    "r2": round(float(r2_score(y_test, preds)), 3),
+    "train_rows": len(train_df),
+    "test_rows": len(test_df),
+}
 print("\n=== Model Evaluation ===")
-print(f"MAE:  {mean_absolute_error(y_test, preds):.2f} min")
-print(f"RMSE: {np.sqrt(mean_squared_error(y_test, preds)):.2f} min")
-print(f"R^2:  {r2_score(y_test, preds):.3f}")
+print(f"MAE:  {metrics['mae_min']:.2f} min")
+print(f"RMSE: {metrics['rmse_min']:.2f} min")
+print(f"R^2:  {metrics['r2']:.3f}")
 
 importance = pd.Series(model.feature_importances_, index=FEATURE_COLS).sort_values(ascending=False)
 print("\n=== Feature Importance ===")
@@ -61,4 +69,6 @@ print(importance)
 joblib.dump(model, os.path.join(MODEL_DIR, "xgb_delay_model.pkl"))
 joblib.dump(encoders, os.path.join(MODEL_DIR, "label_encoders.pkl"))
 joblib.dump(FEATURE_COLS, os.path.join(MODEL_DIR, "feature_columns.pkl"))
+with open(os.path.join(MODEL_DIR, "metrics.json"), "w", encoding="utf-8") as metrics_file:
+    json.dump(metrics, metrics_file, indent=2)
 print(f"\nModel saved to {MODEL_DIR}")

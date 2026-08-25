@@ -10,6 +10,7 @@ export default function App() {
   const [networkError, setNetworkError] = useState('')
   const [connected, setConnected] = useState(false)
   const [realTime, setRealTime] = useState(() => new Date())
+  const [modelInfo, setModelInfo] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -26,6 +27,7 @@ export default function App() {
         })
     }
     loadNetwork()
+    api.getModelInfo().then(setModelInfo).catch(() => {})
     const retryTimer = window.setInterval(loadNetwork, 3000)
     const ws = connectLiveSocket(setLiveState, setConnected)
     return () => {
@@ -64,7 +66,7 @@ export default function App() {
 
       <div className="main-area">
         {view === 'admin' ? (
-          <AdminPanel liveState={liveState} network={network} networkError={networkError} connected={connected} />
+          <AdminPanel liveState={liveState} network={network} networkError={networkError} connected={connected} modelInfo={modelInfo} />
         ) : (
           <UserPanel liveState={liveState} network={network} networkError={networkError} connected={connected} />
         )}

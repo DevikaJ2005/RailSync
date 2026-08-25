@@ -172,6 +172,17 @@ This script:
 - trains an `XGBRegressor`
 - prints evaluation metrics
 - rewrites the `.pkl` files in `backend/app/models/`
+- writes holdout metrics to `backend/app/models/metrics.json`
+
+The current saved model reports the following on the held-out test set:
+
+- MAE: **7.72 minutes**
+- RMSE: **10.38 minutes**
+- R²: **0.450**
+- Training/test rows: **7,800 / 1,948**
+
+The same metrics are available from `GET /api/model-info` and in the
+Controller View's Analytics tab.
 
 ## Deployment Notes
 

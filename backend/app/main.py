@@ -21,7 +21,7 @@ from app.conflict_detection import detect_section_conflicts
 from app.resolver import resolve_conflicts
 from app.llm_narration import narrate_decision
 from app.database import log_decision, get_logs
-from app.model_loader import is_model_loaded, get_feature_importance
+from app.model_loader import is_model_loaded, get_feature_importance, get_model_metrics
 
 app = FastAPI(title="RailSync API")
 
@@ -69,7 +69,12 @@ def get_analytics():
 
 @app.get("/api/model-info")
 def model_info():
-    return {"model_loaded": is_model_loaded(), "feature_importance": get_feature_importance()}
+    return {
+        "model_loaded": is_model_loaded(),
+        "model_name": "XGBoost delay regressor",
+        "metrics": get_model_metrics(),
+        "feature_importance": get_feature_importance(),
+    }
 
 
 @app.get("/api/logs")
