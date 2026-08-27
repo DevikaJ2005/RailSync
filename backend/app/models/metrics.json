@@ -1,0 +1,200 @@
+{
+  "schema_version": "2.0",
+  "generated_at_utc": "2026-08-27T14:36:11Z",
+  "model_name": "XGBoost delay regressor",
+  "dataset_type": "Synthetic Tamil Nadu per-section operational-delay dataset",
+  "target": "delay_min",
+  "mae_min": 3.001,
+  "rmse_min": 3.872,
+  "r2": 0.807,
+  "validation_metrics": {
+    "mae_min": 3.038,
+    "rmse_min": 3.911,
+    "r2": 0.81
+  },
+  "test_metrics": {
+    "mae_min": 3.001,
+    "rmse_min": 3.872,
+    "r2": 0.807
+  },
+  "test_baseline_metrics": {
+    "mae_min": 7.233,
+    "rmse_min": 8.816,
+    "r2": -0.0
+  },
+  "splits": {
+    "train": {
+      "rows": 11739,
+      "date_start": "2026-01-01 00:41",
+      "date_end": "2026-04-30 22:44",
+      "target_distribution": {
+        "mean_min": 28.629,
+        "median_min": 28.7,
+        "std_min": 9.011,
+        "min_min": 1.1,
+        "max_min": 67.8
+      }
+    },
+    "validation": {
+      "rows": 2919,
+      "date_start": "2026-05-01 00:07",
+      "date_end": "2026-05-30 23:58",
+      "target_distribution": {
+        "mean_min": 28.147,
+        "median_min": 28.3,
+        "std_min": 8.98,
+        "min_min": 3.4,
+        "max_min": 58.9
+      }
+    },
+    "test": {
+      "rows": 2931,
+      "date_start": "2026-05-31 01:19",
+      "date_end": "2026-06-29 23:17",
+      "target_distribution": {
+        "mean_min": 28.362,
+        "median_min": 28.4,
+        "std_min": 8.815,
+        "min_min": 4.2,
+        "max_min": 58.5
+      }
+    }
+  },
+  "features": {
+    "count": 14,
+    "categorical": [
+      "train_type",
+      "origin_station",
+      "destination_station",
+      "day_of_week"
+    ],
+    "numeric": [
+      "hour_of_day",
+      "section_distance_km",
+      "remaining_stops",
+      "speed_kmph",
+      "prior_delay_min",
+      "section_occupancy",
+      "nearby_train_count",
+      "destination_platform_occupancy_ratio",
+      "destination_platform_available_count",
+      "congestion_level"
+    ],
+    "model_columns": [
+      "hour_of_day",
+      "section_distance_km",
+      "remaining_stops",
+      "speed_kmph",
+      "prior_delay_min",
+      "section_occupancy",
+      "nearby_train_count",
+      "destination_platform_occupancy_ratio",
+      "destination_platform_available_count",
+      "congestion_level",
+      "train_type_enc",
+      "origin_station_enc",
+      "destination_station_enc",
+      "day_of_week_enc"
+    ],
+    "encoding": "Train-only ordinal mappings; unknown categories use heuristic fallback at runtime."
+  },
+  "model_params": {
+    "n_estimators": 408,
+    "max_depth": 4,
+    "learning_rate": 0.035,
+    "subsample": 0.85,
+    "colsample_bytree": 0.85,
+    "min_child_weight": 3,
+    "reg_lambda": 1.0,
+    "random_state": 42,
+    "objective": "reg:squarederror",
+    "n_jobs": 1
+  },
+  "selection": {
+    "validation_only": true,
+    "selected_n_estimators": 408,
+    "candidate_max_estimators": 600
+  },
+  "feature_importance": [
+    {
+      "feature": "congestion_level",
+      "importance": 0.337324
+    },
+    {
+      "feature": "destination_platform_occupancy_ratio",
+      "importance": 0.261603
+    },
+    {
+      "feature": "train_type_enc",
+      "importance": 0.104101
+    },
+    {
+      "feature": "destination_platform_available_count",
+      "importance": 0.068381
+    },
+    {
+      "feature": "section_occupancy",
+      "importance": 0.057508
+    },
+    {
+      "feature": "speed_kmph",
+      "importance": 0.047173
+    },
+    {
+      "feature": "prior_delay_min",
+      "importance": 0.041302
+    },
+    {
+      "feature": "nearby_train_count",
+      "importance": 0.027555
+    },
+    {
+      "feature": "section_distance_km",
+      "importance": 0.025873
+    },
+    {
+      "feature": "origin_station_enc",
+      "importance": 0.01645
+    },
+    {
+      "feature": "hour_of_day",
+      "importance": 0.003495
+    },
+    {
+      "feature": "destination_station_enc",
+      "importance": 0.003492
+    },
+    {
+      "feature": "remaining_stops",
+      "importance": 0.002881
+    },
+    {
+      "feature": "day_of_week_enc",
+      "importance": 0.002862
+    }
+  ],
+  "diagnostics": {
+    "test_predictions_path": "backend/app/models/test_predictions.csv",
+    "residual_distribution_path": "backend/app/models/residual_distribution.csv",
+    "mean_residual_min": 0.029,
+    "residual_std_min": 3.873,
+    "within_5_min_share": 0.8199
+  },
+  "timing_seconds": {
+    "selection": 0.666,
+    "final_fit": 0.543,
+    "evaluation": 0.013
+  },
+  "environment": {
+    "python_version": "3.13.5",
+    "xgboost_version": "3.2.0",
+    "scikit_learn_version": "1.8.0",
+    "pandas_version": "3.0.0",
+    "platform": "Windows-11-10.0.26200-SP0"
+  },
+  "limitations": [
+    "Synthetic data; not historical Indian Railways movement data.",
+    "Delay prediction only; conflicts remain simulation rules.",
+    "No real-world railway safety or signaling claim."
+  ]
+}
