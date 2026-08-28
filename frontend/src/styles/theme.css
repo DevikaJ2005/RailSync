@@ -167,6 +167,39 @@ body {
   overflow: hidden;
 }
 
+/* --- Resizable divider between map and operations panel --- */
+.resize-divider {
+  flex: 0 0 6px;
+  position: relative;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 1200;
+}
+
+.resize-divider::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--line-steel);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.resize-divider:hover::after,
+.resize-divider.active::after {
+  background: var(--rail-blue);
+  box-shadow: 0 0 8px var(--rail-blue-glow);
+}
+
+body.panel-resizing,
+body.panel-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 /* --- Panels --- */
 .panel {
   background: var(--bg-panel-raised);
@@ -320,18 +353,86 @@ body {
 
 .btn-sm { padding: 4px 10px; font-size: 11.5px; }
 
-.next-service-chip {
-  max-width: 260px;
-  padding: 5px 8px;
-  border: 1px solid var(--line-steel);
-  border-radius: 6px;
-  background: var(--bg-board);
-  color: var(--text-board);
+/* --- Next train card (floating over map, top-left) --- */
+.next-train-card {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  min-width: 200px;
+  max-width: 250px;
+  padding: 10px 14px 12px;
+  background: rgba(13, 20, 32, 0.94);
+  border: 1px solid rgba(79, 143, 232, 0.45);
+  border-radius: 8px;
+  box-shadow: 0 0 14px var(--rail-blue-glow), 0 8px 20px rgba(0, 0, 0, 0.45);
+}
+
+.next-train-card .ntc-label {
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--rail-blue);
+  margin-bottom: 6px;
+}
+
+.next-train-card .ntc-train {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.next-train-card .ntc-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.next-train-card .ntc-no {
   font-family: var(--font-mono);
-  font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+
+.next-train-card .ntc-route {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.next-train-card .ntc-eta {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line-steel);
+}
+
+.next-train-card .ntc-eta-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.next-train-card .ntc-eta-value {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-board);
+  font-variant-numeric: tabular-nums;
+}
+
+.next-train-card .ntc-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 2px 0;
 }
 
 /* --- Conflict / decision cards --- */
@@ -435,26 +536,54 @@ body {
   color: var(--text-secondary);
 }
 
-/* --- Sim clock --- */
-.sim-clock {
+/* --- System clock (real local time, top-right of header) --- */
+.system-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 150px;
   font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-board);
-  background: var(--bg-board);
-  padding: 5px 12px;
-  border-radius: 5px;
-  border: 1px solid var(--line-steel);
-  letter-spacing: 0.05em;
+}
+
+.system-clock-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .clock-label {
-  margin-left: 8px;
   color: var(--text-muted);
   font-family: var(--font-body);
   font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.offline-flag {
+  color: var(--signal-red);
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 600;
   letter-spacing: 0.08em;
-  vertical-align: middle;
+}
+
+.system-clock-time {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-board);
+  text-shadow: 0 0 8px rgba(240, 169, 78, 0.35);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.system-clock-date {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  line-height: 1.2;
 }
 
 /* --- Leaflet overrides for dark theme --- */

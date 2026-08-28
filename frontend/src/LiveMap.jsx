@@ -39,7 +39,20 @@ function FitNetwork({ stations }) {
   return null
 }
 
-export default function LiveMap({ network, networkError, liveState, onStationClick, interactive = true }) {
+function MapResizeHandler({ width }) {
+  const map = useMap()
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      map.invalidateSize({ animate: false })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [map, width])
+
+  return null
+}
+
+export default function LiveMap({ network, networkError, liveState, onStationClick, interactive = true, panelWidth = null }) {
   const stationsByName = useMemo(() => {
     if (!network) return {}
     const map = {}
@@ -74,6 +87,7 @@ export default function LiveMap({ network, networkError, liveState, onStationCli
   return (
     <MapContainer center={TN_CENTER} zoom={7} style={{ height: '100%', width: '100%', minHeight: 420 }}>
       <FitNetwork stations={network.stations} />
+      <MapResizeHandler width={panelWidth} />
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

@@ -3,6 +3,9 @@ import { connectLiveSocket, api } from './api.js'
 import AdminPanel from './admin/AdminPanel.jsx'
 import UserPanel from './user/UserPanel.jsx'
 
+const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+
 export default function App() {
   const [view, setView] = useState('admin')
   const [liveState, setLiveState] = useState(null)
@@ -10,6 +13,20 @@ export default function App() {
   const [networkError, setNetworkError] = useState('')
   const [connected, setConnected] = useState(false)
   const [modelInfo, setModelInfo] = useState(null)
+  const [systemTime, setSystemTime] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setSystemTime(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const systemClockTime = systemTime.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+  const systemClockDate = `${WEEKDAYS[systemTime.getDay()]}, ${String(systemTime.getDate()).padStart(2, '0')} ${MONTHS[systemTime.getMonth()]} ${systemTime.getFullYear()}`
 
   useEffect(() => {
     let cancelled = false
@@ -51,10 +68,13 @@ export default function App() {
             Passenger View
           </button>
         </div>
-        <div className="sim-clock">
-          {liveState?.sim_time || 'SIMULATION STARTING'}
-          <span className="clock-label">SIM TIME</span>
-          {!connected && <span style={{ color: 'var(--signal-red)', marginLeft: 8 }}>● offline</span>}
+        <div className="system-clock">
+          <div className="system-clock-head">
+            <span className="clock-label">SYSTEM TIME</span>
+            {!connected && <span className="offline-flag">● OFFLINE</span>}
+          </div>
+          <div className="system-clock-time">{systemClockTime}</div>
+          <div className="system-clock-date">{systemClockDate}</div>
         </div>
       </div>
 
