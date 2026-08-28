@@ -384,8 +384,9 @@ body.panel-resizing * {
 }
 
 .next-train-card .ntc-icon {
-  font-size: 14px;
-  line-height: 1;
+  color: var(--rail-blue);
+  filter: drop-shadow(0 0 3px var(--rail-blue-glow));
+  flex-shrink: 0;
 }
 
 .next-train-card .ntc-no {
