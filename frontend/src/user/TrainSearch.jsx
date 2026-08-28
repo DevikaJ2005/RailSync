@@ -12,14 +12,10 @@ export default function TrainSearch({ liveState }) {
     <div className="panel">
       <div className="panel-title">Find Your Train</div>
       <input
-        placeholder="Train number or name…"
+        className="filter-input"
+        placeholder="Search by train number or name…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        style={{
-          width: '100%', padding: '8px 10px', marginBottom: 12,
-          background: 'var(--bg-panel)', border: '1px solid var(--line-steel)',
-          borderRadius: 6, color: 'var(--text-primary)', fontSize: 13,
-        }}
       />
       {filtered.length === 0 && <div className="empty-state">No matching trains.</div>}
       {filtered.map((t) => (

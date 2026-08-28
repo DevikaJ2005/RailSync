@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, Popup, Polyline, CircleMarker, Tooltip, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Popup, Polyline, CircleMarker, Tooltip, useMap, ZoomControl } from 'react-leaflet'
 
 const TN_CENTER = [11.3, 78.6]
 
@@ -85,7 +85,8 @@ export default function LiveMap({ network, networkError, liveState, onStationCli
     .filter(Boolean)
 
   return (
-    <MapContainer center={TN_CENTER} zoom={7} style={{ height: '100%', width: '100%', minHeight: 420 }}>
+    <MapContainer center={TN_CENTER} zoom={7} zoomControl={false} style={{ height: '100%', width: '100%', minHeight: 420 }}>
+      <ZoomControl position="topright" />
       <FitNetwork stations={network.stations} />
       <MapResizeHandler width={panelWidth} />
       <TileLayer

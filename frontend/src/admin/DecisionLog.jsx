@@ -15,14 +15,10 @@ export default function DecisionLog() {
   return (
     <div>
       <input
-        placeholder="Filter by train number…"
+        className="filter-input"
+        placeholder="Search by train number…"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        style={{
-          width: '100%', padding: '7px 10px', marginBottom: 12,
-          background: 'var(--bg-panel)', border: '1px solid var(--line-steel)',
-          borderRadius: 6, color: 'var(--text-primary)', fontSize: 12.5,
-        }}
       />
       {logs.length === 0 && <div className="empty-state">No decisions logged yet.</div>}
       {logs.map((log, i) => (

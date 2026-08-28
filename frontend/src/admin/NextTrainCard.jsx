@@ -5,8 +5,8 @@ function TrainIcon() {
     <svg
       className="ntc-icon"
       viewBox="0 0 24 24"
-      width="15"
-      height="15"
+      width="16"
+      height="16"
       fill="currentColor"
       aria-hidden="true"
     >
@@ -22,24 +22,42 @@ function formatEta(value) {
   return parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-export default function NextTrainCard({ liveState }) {
+export default function NextTrainCard({ liveState, network }) {
   const service = liveState?.next_departure_service
+
+  let trainType = null
+  if (service && network?.trains) {
+    const base = network.trains.find((t) => service.train_no.startsWith(`${t.train_no}-`))
+    trainType = base?.type ? base.type.toUpperCase() : null
+  }
 
   return (
     <div className="next-train-card">
-      <div className="ntc-label">NEXT TRAIN</div>
+      <div className="ntc-label">
+        <span className="ntc-label-dot" />
+        NEXT TRAIN
+      </div>
       {service ? (
         <>
           <div className="ntc-train">
             <TrainIcon />
             <span className="ntc-no">{service.train_no}</span>
+            {trainType && <span className="ntc-type-badge">{trainType}</span>}
           </div>
           <div className="ntc-route">
-            {service.origin} → {service.destination}
+            <span className="ntc-station">{service.origin}</span>
+            <span className="ntc-arrow" aria-hidden="true">↓</span>
+            <span className="ntc-station">{service.destination}</span>
           </div>
-          <div className="ntc-eta">
-            <span className="ntc-eta-label">ETA</span>
-            <span className="ntc-eta-value">{formatEta(liveState?.next_departure_time)}</span>
+          <div className="ntc-meta">
+            <div className="ntc-meta-cell">
+              <span className="ntc-meta-label">ETA</span>
+              <span className="ntc-meta-value">{formatEta(liveState?.next_departure_time)}</span>
+            </div>
+            <div className="ntc-meta-cell">
+              <span className="ntc-meta-label">STATUS</span>
+              <span className="ntc-meta-value ntc-status">● ON TIME</span>
+            </div>
           </div>
         </>
       ) : (

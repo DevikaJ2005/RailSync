@@ -25,18 +25,19 @@ export default function WhatIfSimulator({ liveState }) {
       <div className="panel-title">What-If Simulator</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
         <select
+          className="field-input"
           value={trainNo}
           onChange={(e) => setTrainNo(e.target.value)}
-          style={{ background: 'var(--bg-panel)', border: '1px solid var(--line-steel)', color: 'var(--text-primary)', borderRadius: 6, padding: '6px 8px', fontSize: 12.5 }}
         >
           <option value="">Select train…</option>
           {trains.map((t) => <option key={t.train_no} value={t.train_no}>{t.train_no} — {t.name}</option>)}
         </select>
         <input
           type="number"
+          className="field-input"
+          style={{ width: 64 }}
           value={minutes}
           onChange={(e) => setMinutes(e.target.value)}
-          style={{ width: 64, background: 'var(--bg-panel)', border: '1px solid var(--line-steel)', color: 'var(--text-primary)', borderRadius: 6, padding: '6px 8px', fontSize: 12.5 }}
         />
         <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>extra min</span>
         <button className="btn btn-primary" onClick={run} disabled={!trainNo || loading}>

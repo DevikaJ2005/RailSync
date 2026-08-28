@@ -43,7 +43,11 @@ export default function ConflictPanel({ liveState }) {
     }
   }
 
-  if (resolutions.length === 0) {
+  const manualHolds = Object.entries(controllerHolds)
+    .filter(([_, hold]) => hold.manual)
+    .map(([trainNo]) => trainNo)
+
+  if (resolutions.length === 0 && manualHolds.length === 0) {
     return <div className="empty-state">No active simulated section conflicts right now.</div>
   }
 
@@ -53,10 +57,18 @@ export default function ConflictPanel({ liveState }) {
         Delay values are model predictions. Conflict detection and recommendations use simulated operational rules; the controller remains in control.
       </div>
       {message && <div className="action-message">{message}</div>}
+      {resolutions.length === 0 && manualHolds.length > 0 && (
+        <div className="empty-state">No active simulated section conflicts right now.</div>
+      )}
       {resolutions.map((resolution, index) => (
         <div key={resolution.decision_id || index} className={`decision-card severity-${resolution.severity}`}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <strong style={{ fontSize: 13 }}>{resolution.section}</strong>
+          <div className="decision-head">
+            <div className="decision-title">
+              <span className={`decision-severity severity-${resolution.severity}`}>
+                <span className="severity-dot" />{String(resolution.severity).toUpperCase()} CONFLICT
+              </span>
+              <strong className="decision-section">{resolution.section}</strong>
+            </div>
             <span className={`badge badge-${resolution.approval_status === 'approved' ? 'admin' : resolution.approval_status === 'rejected' ? 'danger' : 'simulation'}`}>
               {resolution.approval_status === 'approved' ? 'hold applied' : resolution.approval_status === 'rejected' ? 'released' : 'simulation rule'}
             </span>
@@ -92,51 +104,70 @@ export default function ConflictPanel({ liveState }) {
             <strong>Rule-based recommendation:</strong> the priority score considers service type, predicted delay, and current wait time. Approval applies a simulated hold until the selected train clears the section.
           </div>
 
-          {resolution.approval_status === 'pending' && (
-            <button
-              className="btn btn-sm"
-              style={{ marginTop: 8, marginRight: 6 }}
-              disabled={updating === `decision:${resolution.decision_id}`}
-              onClick={() => handleApproval(resolution.decision_id, true)}
-            >
-              {updating === `decision:${resolution.decision_id}` ? 'Updating...' : 'Approve and apply hold'}
-            </button>
-          )}
-          {resolution.approval_status !== 'rejected' && (
-            <button
-              className="btn btn-sm btn-danger"
-              style={{ marginTop: 8 }}
-              disabled={updating === `decision:${resolution.decision_id}`}
-              onClick={() => handleApproval(resolution.decision_id, false)}
-            >
-              {resolution.approval_status === 'approved' ? 'Release hold' : 'Reject'}
-            </button>
-          )}
-
-          {resolution.held_trains.map((trainNo) => {
-            const train = trainsByNo[trainNo]
-            const isManualHold = Boolean(controllerHolds[trainNo]?.manual)
-            const canApplyManualHold = ['moving', 'checking'].includes(train?.status)
-            if (!isManualHold && !canApplyManualHold) return null
-            const action = isManualHold ? 'release_manual_hold' : 'hold_train'
-            return (
+          <div className="decision-actions">
+            {resolution.approval_status === 'pending' && (
               <button
-                key={`${trainNo}:${action}`}
-                className="btn btn-sm"
-                style={{ marginTop: 8, marginLeft: 6 }}
-                disabled={updating === `override:${trainNo}:${action}`}
-                onClick={() => handleOverride(trainNo, action)}
+                className="btn btn-sm btn-success"
+                disabled={updating === `decision:${resolution.decision_id}`}
+                onClick={() => handleApproval(resolution.decision_id, true)}
               >
-                {updating === `override:${trainNo}:${action}`
-                  ? 'Updating...'
-                  : isManualHold
-                    ? `Release manual hold: ${trainNo}`
-                    : `Manual hold: ${trainNo}`}
+                {updating === `decision:${resolution.decision_id}` ? 'Updating...' : 'Approve & Apply Hold'}
               </button>
-            )
-          })}
+            )}
+            {resolution.approval_status !== 'rejected' && (
+              <button
+                className="btn btn-sm btn-danger"
+                disabled={updating === `decision:${resolution.decision_id}`}
+                onClick={() => handleApproval(resolution.decision_id, false)}
+              >
+                {resolution.approval_status === 'approved' ? 'Release hold' : 'Reject'}
+              </button>
+            )}
+
+            {resolution.held_trains.map((trainNo) => {
+              const train = trainsByNo[trainNo]
+              const isManualHold = Boolean(controllerHolds[trainNo]?.manual)
+              const canApplyManualHold = ['moving', 'checking'].includes(train?.status)
+              if (!isManualHold && !canApplyManualHold) return null
+              const action = isManualHold ? 'release_manual_hold' : 'hold_train'
+              return (
+                <button
+                  key={`${trainNo}:${action}`}
+                  className="btn btn-sm"
+                  disabled={updating === `override:${trainNo}:${action}`}
+                  onClick={() => handleOverride(trainNo, action)}
+                >
+                  {updating === `override:${trainNo}:${action}`
+                    ? 'Updating...'
+                    : isManualHold
+                      ? `Release manual hold: ${trainNo}`
+                      : `Manual hold: ${trainNo}`}
+                </button>
+              )
+            })}
+          </div>
         </div>
       ))}
+
+      {manualHolds.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <div className="panel-title" style={{ marginBottom: 10 }}>Active Manual Holds</div>
+          {manualHolds.map((trainNo) => (
+            <div key={trainNo} className="decision-card severity-minor" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 15px' }}>
+              <div><strong>{trainNo}</strong> is manually held</div>
+              <button
+                className="btn btn-sm"
+                disabled={updating === `override:${trainNo}:release_manual_hold`}
+                onClick={() => handleOverride(trainNo, 'release_manual_hold')}
+              >
+                {updating === `override:${trainNo}:release_manual_hold`
+                  ? 'Updating...'
+                  : `Release manual hold`}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { connectLiveSocket, api } from './api.js'
+import logo from './assets/logo.png'
 import AdminPanel from './admin/AdminPanel.jsx'
 import UserPanel from './user/UserPanel.jsx'
 
@@ -57,8 +58,7 @@ export default function App() {
     <div className="app-shell">
       <div className="topbar">
         <div className="brand">
-          <span className="brand-mark" />
-          RailSync
+          <img src={logo} alt="RailSync Logo" className="brand-logo" />
         </div>
         <div className="view-toggle">
           <button className={view === 'admin' ? 'active' : ''} onClick={() => setView('admin')}>
@@ -70,10 +70,13 @@ export default function App() {
         </div>
         <div className="system-clock">
           <div className="system-clock-head">
-            <span className="clock-label">SYSTEM TIME</span>
-            {!connected && <span className="offline-flag">● OFFLINE</span>}
+            {connected ? (
+              <span className="online-flag"><span className="online-dot" />SYSTEM ONLINE</span>
+            ) : (
+              <span className="offline-flag">● OFFLINE</span>
+            )}
+            <span className="system-clock-time">◷ {systemClockTime}</span>
           </div>
-          <div className="system-clock-time">{systemClockTime}</div>
           <div className="system-clock-date">{systemClockDate}</div>
         </div>
       </div>

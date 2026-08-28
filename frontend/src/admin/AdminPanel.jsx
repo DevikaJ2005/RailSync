@@ -10,7 +10,7 @@ import AnalyticsDashboard from './AnalyticsDashboard.jsx'
 const TABS = ['Station', 'Conflicts', 'Log', 'Analytics']
 const PANEL_MIN_WIDTH = 300
 const PANEL_MAX_WIDTH = 600
-const PANEL_DEFAULT_WIDTH = 360
+const PANEL_DEFAULT_WIDTH = 380
 
 export default function AdminPanel({ liveState, network, networkError, connected, modelInfo }) {
   const [activeTab, setActiveTab] = useState('Conflicts')
@@ -66,7 +66,7 @@ export default function AdminPanel({ liveState, network, networkError, connected
           interactive
           panelWidth={panelWidth}
         />
-        <NextTrainCard liveState={liveState} />
+        <NextTrainCard liveState={liveState} network={network} />
         <div className="legend">
           <span className="legend-item"><span className="legend-dot" style={{ background: '#4F8FE8' }} />Moving</span>
           <span className="legend-item"><span className="legend-dot" style={{ background: '#E8A23D' }} />Waiting</span>
