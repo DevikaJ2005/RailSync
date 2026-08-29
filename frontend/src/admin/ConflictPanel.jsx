@@ -100,9 +100,9 @@ export default function ConflictPanel({ liveState }) {
           </div>
 
           <div className="reason-text">{resolution.reason}</div>
-          <div className="priority-explanation">
-            <strong>Rule-based recommendation:</strong> the priority score considers service type, predicted delay, and current wait time. Approval applies a simulated hold until the selected train clears the section.
-          </div>
+<div className="priority-explanation">
+  <strong>Why this choice:</strong> express trains and more-delayed trains go first. Approving applies a simulated hold — the waiting train stops until the chosen train has passed.
+</div>
 
           <div className="decision-actions">
             {resolution.approval_status === 'pending' && (

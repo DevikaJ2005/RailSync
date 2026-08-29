@@ -183,7 +183,7 @@ reason, and who triggered the action.
 | Frontend | React 18, Vite |
 | Map | React Leaflet, Leaflet, OpenStreetMap tiles |
 | Charts | Recharts |
-| Optional LLM narration | Groq API, Ollama |
+| Optional LLM narration | OpenRouter MiniMax, Ollama |
 
 ## 13. Non-Functional Goals
 

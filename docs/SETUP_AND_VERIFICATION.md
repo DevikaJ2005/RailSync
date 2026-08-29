@@ -8,7 +8,7 @@ detected and resolved through deterministic, explainable rules.
 
 - Python 3.11+
 - Node.js 18+
-- Optional: Firebase credentials for persistent logs, Groq or Ollama for
+- Optional: Firebase credentials for persistent logs, OpenRouter MiniMax or Ollama for
   narration. The app works without optional services.
 
 ## Start the backend

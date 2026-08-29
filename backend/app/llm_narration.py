@@ -4,33 +4,36 @@ import os
 import time
 import requests
 
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 TIMEOUT_SECONDS = 3
+OPENROUTER_TIMEOUT_SECONDS = int(os.getenv("OPENROUTER_TIMEOUT_SECONDS", "15"))
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "20"))
 RETRY_COOLDOWN_SECONDS = 60
 SYSTEM_PROMPT = (
-    "You are a railway control assistant. Explain the following simulated rule-based recommendation "
-    "in one short sentence using very simple English. Keep every train number, "
-    "score, delay, and action. Do not add facts or use technical jargon."
+    "You are a railway control assistant writing for a control-room screen. "
+    "Explain this recommendation in one or two very short sentences that anyone can understand. "
+    "Use everyday words only. Say which train goes first and which trains wait, and give the reason "
+    "in plain words (for example: the express goes first, or the other train is less delayed). "
+    "Do NOT mention priority scores or compare numbers. Keep train numbers and minutes. Do not add facts."
 )
 
-_unavailable_until = {"groq": 0.0, "ollama": 0.0}
+_unavailable_until = {"openrouter": 0.0, "ollama": 0.0}
 
 
 def narrate_decision(reason: str) -> str:
     provider = os.getenv("LLM_PROVIDER", "auto").lower()
-    api_key = os.getenv("GROQ_API_KEY")
+    api_key = os.getenv("OPENROUTER_API_KEY")
     if provider == "auto":
-        providers = ["groq"] if api_key else []
+        providers = ["openrouter", "ollama"] if api_key else ["ollama"]
     else:
         providers = [provider]
 
     for selected_provider in providers:
         if time.monotonic() < _unavailable_until.get(selected_provider, 0.0):
             continue
-        if selected_provider == "groq" and api_key:
-            narrated = _narrate_with_groq(reason, api_key)
+        if selected_provider == "openrouter" and api_key:
+            narrated = _narrate_with_openrouter(reason, api_key)
         elif selected_provider == "ollama":
             narrated = _narrate_with_ollama(reason)
         else:
@@ -40,13 +43,18 @@ def narrate_decision(reason: str) -> str:
     return reason
 
 
-def _narrate_with_groq(reason: str, api_key: str):
-    model = os.getenv("GROQ_MODEL", "gemma2-9b-it")
+def _narrate_with_openrouter(reason: str, api_key: str):
+    model = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m3:free")
 
     try:
         response = requests.post(
-            GROQ_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "http://localhost:8000",
+                "X-Title": "RailSync",
+            },
             json={
                 "model": model,
                 "messages": [
@@ -58,16 +66,18 @@ def _narrate_with_groq(reason: str, api_key: str):
                 ],
                 "max_tokens": 120,
                 "temperature": 0.3,
+                "reasoning": {"enabled": False},
             },
-            timeout=TIMEOUT_SECONDS,
+            timeout=OPENROUTER_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
         data = response.json()
-        narrated = data["choices"][0]["message"]["content"].strip()
+        msg = data["choices"][0]["message"]
+        narrated = (msg.get("content") or "").strip()
         return narrated or None
     except Exception as e:
-        _unavailable_until["groq"] = time.monotonic() + RETRY_COOLDOWN_SECONDS
-        print(f"[llm_narration] Groq unavailable ({e}); trying Ollama if enabled.")
+        _unavailable_until["openrouter"] = time.monotonic() + RETRY_COOLDOWN_SECONDS
+        print(f"[llm_narration] OpenRouter unavailable ({e}); trying Ollama if enabled.")
         return None
 
 

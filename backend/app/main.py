@@ -203,6 +203,14 @@ def whatif(request: WhatIfRequest):
         conflicts = detect_section_conflicts(snapshot)
         resolutions = resolve_conflicts(conflicts, snapshot)
         total_projected_delay = sum(train["predicted_delay_min"] for train in snapshot["trains"])
+        # Narrate each projected resolution's reason via the LLM (OpenRouter/MiniMax or Ollama fallback)
+        for resolution in resolutions:
+            decision_id = resolution["decision_id"]
+            if decision_id in narrated_decisions:
+                resolution["reason"] = narrated_decisions[decision_id]
+            else:
+                resolution["reason"] = narrate_decision(resolution["reason"])
+                narrated_decisions[decision_id] = resolution["reason"]
         log_decision(
             sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M"),
             conflict_type="what_if",
