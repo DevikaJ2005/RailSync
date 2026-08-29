@@ -152,6 +152,29 @@ npm.cmd run dev
 Open `http://127.0.0.1:5173`. Configure `VITE_API_URL` and `VITE_WS_URL` if
 the backend is elsewhere.
 
+### Sign-in
+
+The app requires a role-based sign-in (single port — the view is chosen by the
+signed-in role, not by a separate port). The same sample accounts are shown and
+auto-fill on the login card:
+
+| Role | Username | Password |
+|---|---|---|
+| Controller (full control room) | `controller` | `admin@123` |
+| Passenger (read-only live view) | `passenger` | `pass@123` |
+
+- `controller` unlocks the full control-room dashboard: station detail,
+  conflict recommendations with approve/reject, hold/release overrides,
+  what-if delay simulation, analytics, and the decision log.
+- `passenger` gets the read-only passenger experience: live map, platform
+  board, and train search.
+
+Tokens are short-lived HMAC-signed sessions issued by `POST /api/auth/login`.
+Controller-only endpoints return `401` without a token and `403` for the
+passenger role. The backend reads `RAILSYNC_AUTH_SECRET` and
+`RAILSYNC_TOKEN_TTL_SECONDS` from `backend/.env` if you want to override the
+development defaults.
+
 ## Regenerate data and model evidence
 
 From the repository root:
@@ -176,18 +199,23 @@ validation, and evaluates test once. It writes:
 
 ## API summary
 
+- `POST /api/auth/login` — sign in with a username/password, returns a token and role
+- `GET /api/auth/me` — validate the current token and return its role
 - `GET /` — health, model status, and scope statement
 - `GET /api/network` — canonical simulated network
 - `GET /api/state` — shared current simulation state
 - `GET /api/model-info` — model metrics, feature importance, and scope
-- `GET /api/analytics` — simulated operational counters
-- `GET /api/logs` — controller/simulation decision log
-- `POST /api/whatif` — non-persistent delay scenario
-- `POST /api/decisions/approve` — approve/reject a rule-based recommendation
-- `POST /api/override` — simulated controller hold/release or eligible
-  platform-allocation override
-- `POST /api/simulation/{pause,resume,reset,speed}` — simulation controls
 - `ws://127.0.0.1:8000/ws/live` — live shared state
+
+Endpoints marked *(controller)* require a controller-role bearer token:
+
+- `GET /api/analytics` *(controller)* — simulated operational counters
+- `GET /api/logs` *(controller)* — controller/simulation decision log
+- `POST /api/whatif` *(controller)* — non-persistent delay scenario
+- `POST /api/decisions/approve` *(controller)* — approve/reject a rule-based recommendation
+- `POST /api/override` *(controller)* — simulated controller hold/release or eligible
+  platform-allocation override
+- `POST /api/simulation/{pause,resume,reset,speed}` *(controller)* — simulation controls
 
 ## Data grounding and limitations
 

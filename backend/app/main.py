@@ -10,12 +10,13 @@ from contextlib import suppress
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
+from app.auth import authenticate, issue_token, verify_token
 from app.conflict_detection import detect_section_conflicts
 from app.database import get_logs, log_decision
 from app.llm_narration import narrate_decision
@@ -47,6 +48,26 @@ app.add_middleware(
 )
 
 TICK_SECONDS = max(0.2, float(os.getenv("SIMULATION_TICK_SECONDS", "2")))
+
+
+def require_auth(authorization: str = Header(default="")) -> dict:
+    """Resolve a Bearer token into an authenticated token payload."""
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="missing or malformed authorization header")
+    payload = verify_token(authorization[len("Bearer "):].strip())
+    if payload is None:
+        raise HTTPException(status_code=401, detail="invalid or expired token")
+    return payload
+
+
+def require_role(role: str):
+    def _check(payload: dict = Depends(require_auth)) -> dict:
+        if payload.get("role") != role:
+            raise HTTPException(status_code=403, detail=f"this action requires the '{role}' role")
+        return payload
+
+    return _check
+
 
 simulator = Simulator()
 approved_decisions: set[str] = set()
@@ -154,6 +175,25 @@ def health():
     }
 
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/login")
+def login(request: LoginRequest):
+    user = authenticate(request.username.strip(), request.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail="invalid credentials")
+    token = issue_token(user["username"], user["role"])
+    return {"token": token, "user": user}
+
+
+@app.get("/api/auth/me")
+def auth_me(payload: dict = Depends(require_auth)):
+    return payload
+
+
 @app.get("/api/network")
 def get_network():
     return network_payload()
@@ -165,7 +205,7 @@ def get_state():
 
 
 @app.get("/api/analytics")
-def get_analytics():
+def get_analytics(payload: dict = Depends(require_role("controller"))):
     with _state_lock:
         return simulator.get_analytics()
 
@@ -182,7 +222,7 @@ def model_info():
 
 
 @app.get("/api/logs")
-def api_get_logs(train_no: str | None = None):
+def api_get_logs(train_no: str | None = None, payload: dict = Depends(require_role("controller"))):
     return get_logs(train_no=train_no)
 
 
@@ -192,7 +232,7 @@ class WhatIfRequest(BaseModel):
 
 
 @app.post("/api/whatif")
-def whatif(request: WhatIfRequest):
+def whatif(request: WhatIfRequest, payload: dict = Depends(require_role("controller"))):
     with _state_lock:
         snapshot = copy.deepcopy(simulator.get_state())
         target = next((train for train in snapshot["trains"] if train["train_no"] == request.train_no), None)
@@ -244,7 +284,7 @@ class ApprovalRequest(BaseModel):
 
 
 @app.post("/api/decisions/approve")
-def approve_decision(request: ApprovalRequest):
+def approve_decision(request: ApprovalRequest, payload: dict = Depends(require_role("controller"))):
     with _state_lock:
         sim_state = simulator.get_state()
         current_resolutions = resolve_conflicts(detect_section_conflicts(sim_state), sim_state)
@@ -293,7 +333,7 @@ def approve_decision(request: ApprovalRequest):
 
 
 @app.post("/api/override")
-def override(request: OverrideRequest):
+def override(request: OverrideRequest, payload: dict = Depends(require_role("controller"))):
     supported_actions = {"force_proceed", "hold_train", "release_manual_hold"}
     if request.action not in supported_actions:
         raise HTTPException(status_code=400, detail=f"unsupported action; choose one of {sorted(supported_actions)}")
@@ -357,7 +397,7 @@ class SpeedRequest(BaseModel):
 
 
 @app.post("/api/simulation/pause")
-def pause_sim():
+def pause_sim(payload: dict = Depends(require_role("controller"))):
     with _state_lock:
         simulator.pause()
         log_decision(
@@ -373,7 +413,7 @@ def pause_sim():
 
 
 @app.post("/api/simulation/resume")
-def resume_sim():
+def resume_sim(payload: dict = Depends(require_role("controller"))):
     with _state_lock:
         simulator.resume()
         log_decision(
@@ -389,7 +429,7 @@ def resume_sim():
 
 
 @app.post("/api/simulation/reset")
-def reset_sim():
+def reset_sim(payload: dict = Depends(require_role("controller"))):
     with _state_lock:
         simulator.reset()
         approved_decisions.clear()
@@ -409,7 +449,7 @@ def reset_sim():
 
 
 @app.post("/api/simulation/speed")
-def set_speed(request: SpeedRequest):
+def set_speed(request: SpeedRequest, payload: dict = Depends(require_role("controller"))):
     with _state_lock:
         simulator.set_speed(request.multiplier)
         log_decision(
