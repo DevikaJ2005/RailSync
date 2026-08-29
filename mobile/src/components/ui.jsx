@@ -15,13 +15,18 @@ export function EmptyState({ children, style }) {
 }
 
 export function Badge({ tone, children, style }) {
-  const map = {
-    simulation: styles.badgeSimulation,
-    ai: styles.badgeSimulation,
-    admin: styles.badgeAdmin,
-    danger: styles.badgeDanger,
+  const tones = {
+    simulation: { bg: 'rgba(79,143,232,0.15)', fg: colors.railBlue },
+    ai: { bg: 'rgba(79,143,232,0.15)', fg: colors.railBlue },
+    admin: { bg: 'rgba(232,162,61,0.15)', fg: colors.signalAmber },
+    danger: { bg: 'rgba(214,69,69,0.15)', fg: colors.signalRed },
   };
-  return <View style={[styles.badge, map[tone] || styles.badgeSimulation, style]}>{children}</View>;
+  const t = tones[tone] || tones.simulation;
+  return (
+    <View style={[styles.badge, { backgroundColor: t.bg }, style]}>
+      <Text style={[styles.badgeText, { color: t.fg }]}>{children}</Text>
+    </View>
+  );
 }
 
 export function Stat({ label, value, color }) {
@@ -114,19 +119,18 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   badge: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.04 * 10,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 4,
-    overflow: 'hidden',
     alignSelf: 'flex-start',
+    overflow: 'hidden',
   },
-  badgeSimulation: { backgroundColor: 'rgba(79,143,232,0.15)', color: colors.railBlue },
-  badgeAdmin: { backgroundColor: 'rgba(232,162,61,0.15)', color: colors.signalAmber },
-  badgeDanger: { backgroundColor: 'rgba(214,69,69,0.15)', color: colors.signalRed },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   stat: {
     backgroundColor: colors.bgPanelRaised,
     borderWidth: 1,
