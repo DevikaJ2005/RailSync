@@ -12,11 +12,26 @@ import {
 import { colors, fonts } from '../theme';
 import { SAMPLE_CREDENTIALS } from '../auth';
 
-export default function LoginScreen({ onLogin, error: serverError, serverUrl, onServerChange }) {
+export default function LoginScreen({ onLogin, error: serverError, serverUrl, onServerChange, onTestConnection }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [editingServer, setEditingServer] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const detail = await onTestConnection(serverUrl);
+      setTestResult({ ok: true, text: detail });
+    } catch (e) {
+      setTestResult({ ok: false, text: e.message });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (submitting) return;
@@ -90,6 +105,17 @@ export default function LoginScreen({ onLogin, error: serverError, serverUrl, on
                   autoCorrect={false}
                   keyboardType="url"
                 />
+                <View style={styles.testRow}>
+                  <TouchableOpacity style={styles.testBtn} onPress={handleTest} disabled={testing}>
+                    <Text style={styles.testBtnText}>{testing ? 'Testing…' : 'Test connection'}</Text>
+                  </TouchableOpacity>
+                  {testResult ? (
+                    <Text style={[styles.testResult, testResult.ok ? styles.testOk : styles.testFail]}>
+                      {testResult.ok ? '✓ ' : '✕ '}
+                      {testResult.text}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
             )}
 
@@ -211,6 +237,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.signalRed,
   },
+  testRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  testBtn: {
+    borderWidth: 1,
+    borderColor: colors.railBlue,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  testBtnText: { fontSize: 11.5, fontWeight: '600', color: colors.railBlue },
+  testResult: { fontSize: 11, flexShrink: 1, flex: 1 },
+  testOk: { color: colors.signalGreen },
+  testFail: { color: colors.signalRed },
   submit: {
     marginTop: 4,
     backgroundColor: colors.railBlue,

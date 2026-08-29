@@ -77,8 +77,26 @@ export function connectLiveSocket(onMessage, onStatusChange) {
   };
 }
 
-async function req(path, options = {}) {
+export async function pingBackend() {
   if (!apiUrl) throw new Error('API client not initialized');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(apiUrl, { signal: controller.signal });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(`backend replied with HTTP ${res.status}`);
+    return { ok: true, detail: `status ${body?.status || 'ok'} · model ${body?.model_loaded ? 'loaded' : 'not loaded'}` };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('no response within 6s — is the backend running?');
+    }
+    throw new Error('cannot reach backend (network request failed)');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function req(path, options = {}) {  if (!apiUrl) throw new Error('API client not initialized');
   const res = await fetch(`${apiUrl}${path}`, {
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(options.headers || {}) },
     ...options,

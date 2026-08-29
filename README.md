@@ -134,8 +134,11 @@ frontend/
 ```powershell
 cd backend
 pip install -r requirements.txt
-python -m uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --host 0.0.0.0 --reload --port 8000
 ```
+
+`--host 0.0.0.0` binds all interfaces so phones on the same Wi-Fi can reach
+the API; `127.0.0.1` (the default) is loopback-only and blocks Expo Go.
 
 `backend/.env` contains optional Firebase and narration settings. Do not commit
 it or Firebase credentials. With the bundled artifacts and
@@ -151,6 +154,26 @@ npm.cmd run dev
 
 Open `http://127.0.0.1:5173`. Configure `VITE_API_URL` and `VITE_WS_URL` if
 the backend is elsewhere.
+
+### Mobile (Expo Go)
+
+```powershell
+cd mobile
+npm.cmd install
+npx expo start
+```
+
+Scan the QR code with the Expo Go app. The mobile client auto-detects the
+backend at the Expo development host on port 8000; the address can be
+overridden on the sign-in screen (tap the backend line under the password
+field, then use "Test connection"). Requirements for sign-in to work from a
+phone:
+
+- The backend must run with `--host 0.0.0.0`.
+- The phone and computer must share the same Wi-Fi network. Networks with
+  client isolation (common on campus/office Wi-Fi) block device-to-device
+  traffic — use `npx expo start --tunnel` and set the backend address
+  manually in that case.
 
 ### Sign-in
 

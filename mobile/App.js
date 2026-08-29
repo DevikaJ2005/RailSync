@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { initApi, api, setToken, connectLiveSocket, onUnauthorized } from './src/api';
+import { initApi, api, setToken, connectLiveSocket, onUnauthorized, pingBackend } from './src/api';
 import { loadSession, saveSession, clearSession } from './src/auth';
 import { saveApiUrl } from './src/config';
 import LoginScreen from './src/screens/LoginScreen';
@@ -84,8 +84,23 @@ export default function App() {
       await saveSession(token, loggedInUser);
       setUser(loggedInUser);
     } catch (error) {
-      setLoginError(error.message);
+      const message = String(error?.message || '');
+      if (/network/i.test(message) || error instanceof TypeError) {
+        setLoginError(
+          `Cannot reach the backend at ${serverUrl}. Start it with --host 0.0.0.0 and make sure the phone is on the same Wi-Fi.`,
+        );
+      } else {
+        setLoginError(message || 'Sign-in failed.');
+      }
     }
+  };
+
+  const handleTestConnection = async (url) => {
+    const saved = await saveApiUrl(url);
+    await initApi();
+    setServerUrl(saved);
+    const health = await pingBackend();
+    return health.detail;
   };
 
   const handleLogout = async () => {
@@ -117,6 +132,7 @@ export default function App() {
             error={loginError}
             serverUrl={serverUrl}
             onServerChange={setServerUrl}
+            onTestConnection={handleTestConnection}
           />
         ) : (
           <HomeScreen
