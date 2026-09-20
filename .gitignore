@@ -1,9 +1,16 @@
 # Node / build artifacts
 node_modules/
 dist/
+frontend/test-results/
 
 # Python
 __pycache__/
 *.pyc
 
+# Local configuration and credentials
+
+
+# Local-only tooling and scratch output
+scratch-temp-comp/
+tools/ffmpeg/
 
