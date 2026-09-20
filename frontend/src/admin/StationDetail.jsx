@@ -20,6 +20,15 @@ function getArrivalMinutes(train, station, stationsByName) {
   return Math.max(0, Math.round(minutes))
 }
 
+function formatWaiting(minutes) {
+  const total = Math.max(0, Math.round(Number(minutes) || 0))
+  return total < 60 ? `${total} min` : `${Math.floor(total / 60)}h ${total % 60}m`
+}
+
+function statusLabel(status) {
+  return String(status || '').replaceAll('_', ' ')
+}
+
 export default function StationDetail({ station, liveState, network }) {
   if (!station) return <div className="empty-state">Click a station on the map to see platform status.</div>
   if (!liveState) return <div className="empty-state">Loading…</div>
@@ -34,10 +43,17 @@ export default function StationDetail({ station, liveState, network }) {
     const stationIndex = train.route?.indexOf(station) ?? -1
     return train.status !== 'completed' && stationIndex > train.route_index
   })
+  const occupiedPlatforms = Object.values(platformData.platforms).filter(Boolean).length
 
   return (
     <div>
-      <div className="panel-title">{station}</div>
+      <div className="station-summary">
+        <div>
+          <div className="panel-title">{station}</div>
+          <div className="station-summary-note">Station operations</div>
+        </div>
+        <div className="station-summary-count"><strong>{occupiedPlatforms}</strong>/{Object.keys(platformData.platforms).length}<span>platforms occupied</span></div>
+      </div>
       <div className="board-row" style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 11 }}>
         <span>PLAT</span><span>TRAIN</span><span>TYPE</span><span>STATUS</span>
       </div>
@@ -48,20 +64,20 @@ export default function StationDetail({ station, liveState, network }) {
             <span className="split-flap-cell">{plat}</span>
             <span>{trainNo || '—'}</span>
             <span style={{ color: 'var(--text-muted)' }}>{t?.type || ''}</span>
-            <span>
-              {t ? (
-                <span className={`status-chip status-${t.status}`}>
-                  <span className="dot" />{t.status.replace('_', ' ')}
+              <span>
+                {t ? (
+                <span className={`status-chip status-${t.operational_status || t.status}`}>
+                  <span className="dot" />{(t.operational_status || t.status).replace('_', ' ')}
                 </span>
-              ) : '—'}
-            </span>
+                ) : '—'}
+              </span>
           </div>
         )
       })}
 
       {platformData.waiting_queue.length > 0 && (
         <>
-          <div className="panel-title" style={{ marginTop: 14 }}>Waiting Queue</div>
+          <div className="panel-title" style={{ marginTop: 14 }}>Waiting trains</div>
           {platformData.waiting_queue.map((trainNo) => {
             const t = trainsByNo[trainNo]
             return (
@@ -69,6 +85,9 @@ export default function StationDetail({ station, liveState, network }) {
                 <span>{trainNo}</span>
                 <span style={{ color: 'var(--text-muted)' }}>{t?.type}</span>
                 <span style={{ color: 'var(--signal-amber)' }}>{t?.minutes_waited}m waited</span>
+                              <span style={{ color: 'var(--signal-amber)' }}>{formatWaiting(t?.minutes_waited)} waiting</span>
+                <div className="panel-title" style={{ marginTop: 14 }}>Upcoming movements</div>
+                            {statusLabel(train.operational_status || train.status)}
               </div>
             )
           })}
@@ -80,7 +99,7 @@ export default function StationDetail({ station, liveState, network }) {
         <div className="empty-state">No active trains scheduled for this station.</div>
       ) : arrivals.map((train) => {
         const stationIndex = train.route.indexOf(station)
-        const isAtStation = train.to === station && train.status !== 'moving'
+        const isAtStation = train.to === station && train.operational_status !== 'moving'
         const eta = getArrivalMinutes(train, station, stationsByName)
         return (
           <div className="board-row" key={train.train_no}>
@@ -89,8 +108,8 @@ export default function StationDetail({ station, liveState, network }) {
             <span style={{ color: isAtStation ? 'var(--signal-green)' : 'var(--text-muted)' }}>
               {isAtStation ? 'At station' : `In ${eta} min`}
             </span>
-            <span className={`status-chip status-${train.status}`}>
-              <span className="dot" />{train.status.replace('_', ' ')}
+            <span className={`status-chip status-${train.operational_status || train.status}`}>
+              <span className="dot" />{(train.operational_status || train.status).replace('_', ' ')}
             </span>
           </div>
         )

@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 90" width="24" height="90">
+  <defs>
+    <!-- Heavy freight electric locomotive (WAG-9 blue) -->
+    <linearGradient id="wagBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#082F49"/>
+      <stop offset="12%" stop-color="#0284C7"/>
+      <stop offset="50%" stop-color="#0EA5E9"/>
+      <stop offset="88%" stop-color="#0284C7"/>
+      <stop offset="100%" stop-color="#082F49"/>
+    </linearGradient>
+    <!-- Cargo container 1: Industrial Rust / Terracotta -->
+    <linearGradient id="cargoRust" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7C2D12"/>
+      <stop offset="15%" stop-color="#C2410C"/>
+      <stop offset="50%" stop-color="#EA580C"/>
+      <stop offset="85%" stop-color="#C2410C"/>
+      <stop offset="100%" stop-color="#7C2D12"/>
+    </linearGradient>
+    <!-- Cargo container 2: Maritime Dark Teal -->
+    <linearGradient id="cargoTeal" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#134E4A"/>
+      <stop offset="15%" stop-color="#0F766E"/>
+      <stop offset="50%" stop-color="#14B8A6"/>
+      <stop offset="85%" stop-color="#0F766E"/>
+      <stop offset="100%" stop-color="#134E4A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- === UNIT 1: HEAVY FREIGHT LOCOMOTIVE === -->
+  <!-- Dark underframe drop shadow -->
+  <rect x="2" y="3" width="20" height="38" rx="2" fill="#020617" opacity="0.6"/>
+
+  <!-- Locomotive chassis & body -->
+  <path d="M 4 4 L 20 4 Q 21.5 5 21.5 8 L 21.5 39 L 2.5 39 L 2.5 8 Q 2.5 5 4 4 Z"
+        fill="url(#wagBlue)" stroke="#0F172A" stroke-width="1"/>
+
+  <!-- High-visibility yellow safety chevrons / pilot band -->
+  <polygon points="3,6 7,10 17,10 21,6 20,4 12,8 4,4" fill="#FACC15"/>
+
+  <!-- Windshields -->
+  <rect x="4.5" y="5" width="6.5" height="3" rx="0.5" fill="#020617"/>
+  <rect x="13" y="5" width="6.5" height="3" rx="0.5" fill="#020617"/>
+  <rect x="5" y="5.4" width="5.5" height="1.8" fill="#7DD3FC" opacity="0.8"/>
+  <rect x="13.5" y="5.4" width="5.5" height="1.8" fill="#7DD3FC" opacity="0.8"/>
+
+  <!-- Heavy dual headlights -->
+  <circle cx="5" cy="4" r="1.3" fill="#FEF08A"/>
+  <circle cx="5" cy="4" r="0.8" fill="#FFFFFF"/>
+  <circle cx="19" cy="4" r="1.3" fill="#FEF08A"/>
+  <circle cx="19" cy="4" r="0.8" fill="#FFFFFF"/>
+
+  <!-- Heavy roof AC unit and equipment -->
+  <rect x="6" y="13" width="12" height="15" rx="1" fill="#334155" stroke="#1E293B" stroke-width="0.6"/>
+  <line x1="7" y1="16" x2="17" y2="16" stroke="#475569" stroke-width="0.6"/>
+  <line x1="7" y1="19" x2="17" y2="19" stroke="#475569" stroke-width="0.6"/>
+  <line x1="7" y1="22" x2="17" y2="22" stroke="#475569" stroke-width="0.6"/>
+  <line x1="7" y1="25" x2="17" y2="25" stroke="#475569" stroke-width="0.6"/>
+
+  <!-- Red Pantograph -->
+  <line x1="7" y1="32" x2="17" y2="32" stroke="#EF4444" stroke-width="1" stroke-linecap="round"/>
+  <line x1="8" y1="29" x2="16" y2="35" stroke="#475569" stroke-width="0.8"/>
+  <line x1="16" y1="29" x2="8" y2="35" stroke="#475569" stroke-width="0.8"/>
+
+  <!-- Heavy knuckle coupler -->
+  <rect x="8" y="39" width="8" height="4" fill="#0F172A"/>
+
+  <!-- === UNIT 2: CONTAINER WAGON 1 (Rust Orange) === -->
+  <!-- Container flatcar frame -->
+  <rect x="2" y="43" width="20" height="21" rx="1" fill="#020617" opacity="0.6"/>
+  <rect x="3" y="43" width="18" height="21" rx="0.8" fill="url(#cargoRust)" stroke="#0F172A" stroke-width="0.9"/>
+  <!-- Corrugated container rib lines -->
+  <line x1="4" y1="47" x2="20" y2="47" stroke="#9A3412" stroke-width="0.6"/>
+  <line x1="4" y1="51" x2="20" y2="51" stroke="#9A3412" stroke-width="0.6"/>
+  <line x1="4" y1="55" x2="20" y2="55" stroke="#9A3412" stroke-width="0.6"/>
+  <line x1="4" y1="59" x2="20" y2="59" stroke="#9A3412" stroke-width="0.6"/>
+
+  <!-- Wagon coupler -->
+  <rect x="9" y="64" width="6" height="3" fill="#0F172A"/>
+
+  <!-- === UNIT 3: CONTAINER WAGON 2 (Maritime Teal) === -->
+  <rect x="2" y="67" width="20" height="20" rx="1" fill="#020617" opacity="0.6"/>
+  <rect x="3" y="67" width="18" height="20" rx="0.8" fill="url(#cargoTeal)" stroke="#0F172A" stroke-width="0.9"/>
+  <!-- Corrugated rib lines -->
+  <line x1="4" y1="71" x2="20" y2="71" stroke="#115E59" stroke-width="0.6"/>
+  <line x1="4" y1="75" x2="20" y2="75" stroke="#115E59" stroke-width="0.6"/>
+  <line x1="4" y1="79" x2="20" y2="79" stroke="#115E59" stroke-width="0.6"/>
+  <line x1="4" y1="83" x2="20" y2="83" stroke="#115E59" stroke-width="0.6"/>
+
+  <!-- Red marker reflectors on rear -->
+  <circle cx="5" cy="85.5" r="1.1" fill="#EF4444"/>
+  <circle cx="19" cy="85.5" r="1.1" fill="#EF4444"/>
+</svg>

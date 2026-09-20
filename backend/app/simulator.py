@@ -10,7 +10,9 @@ from app.network import STATIONS, TRAINS, get_distance
 from app.models import TrainState, TrainStatus
 from app.platform_manager import PlatformManager
 from app.delay_features import build_delay_features
+from app.future_timing import next_milestone_eta_minutes
 from app.model_loader import predict_delay
+from app.historical_patterns import get_pattern
 
 
 class Simulator:
@@ -23,9 +25,9 @@ class Simulator:
         self.paused = False
         self.controller_holds = {}
         self.service_counter = 0
-        self.spawn_interval_minutes = 20
+        self.spawn_interval_minutes = 30
         self.next_departure_time = self.sim_time + timedelta(minutes=self.spawn_interval_minutes)
-        self.max_active_trains = 30
+        self.max_active_trains = 16
 
         self.conflicts_detected = 0
         self.conflicts_resolved = 0
@@ -113,11 +115,64 @@ class Simulator:
             }
         return contexts
 
+    def _estimate_train_eta_minutes(self, train: TrainState) -> float | None:
+        """Estimate when the train reaches its next operational milestone."""
+
+        if train.status == TrainStatus.COMPLETED:
+            return None
+        if train.status == TrainStatus.HELD:
+            return None
+        if train.status == TrainStatus.WAITING:
+            return None
+        if train.status == TrainStatus.AT_PLATFORM:
+            if self.speed_multiplier <= 0:
+                return None
+            dwell_minutes = max(0.0, train.dwell_ticks_remaining * 2.0 / self.speed_multiplier)
+            return round(dwell_minutes, 1)
+
+        eta_minutes = next_milestone_eta_minutes(train.to_dict(self.sim_time))
+        return round(eta_minutes, 1) if eta_minutes is not None else None
+
+    def _select_next_train(self) -> dict | None:
+        """Pick one deterministic train for the dashboard widget."""
+
+        candidates: list[tuple[float, str, TrainState]] = []
+        for train in self.trains:
+            eta_minutes = self._estimate_train_eta_minutes(train)
+            if eta_minutes is None:
+                continue
+            candidates.append((eta_minutes, train.train_no, train))
+
+        if not candidates:
+            return None
+
+        eta_minutes, _, train = min(candidates, key=lambda item: (item[0], item[1]))
+        eta_at = self.sim_time + timedelta(minutes=eta_minutes)
+        return {
+            "train_no": train.train_no,
+            "trip_id": train.trip_id,
+            "base_train_no": train.base_train_no,
+            "name": train.name,
+            "origin": train.current_from,
+            "destination": train.current_to,
+            "route": train.route,
+            "status": train.status.value,
+            "operational_status": train.status.value,
+            "location_state": train.to_dict(self.sim_time)["location_state"],
+            "delay_min": round(train.predicted_delay_min, 1),
+            "predicted_delay_min": round(train.predicted_delay_min, 1),
+            "eta_minutes": eta_minutes,
+            "eta_at": eta_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "selection_rule": "chronological_eta",
+            "reason": "Earliest deterministic ETA among active non-completed trains.",
+        }
+
     def observe_conflicts(self, conflicts: list[dict]) -> None:
         """Count conflict onsets once rather than once per API/WebSocket poll."""
         current_ids = {
             f"{conflict['section']}|{','.join(sorted(conflict['trains_involved']))}"
             for conflict in conflicts
+            if conflict.get("conflict_status") == "active"
         }
         self.conflicts_detected += len(current_ids - self.active_conflict_ids)
         self.active_conflict_ids = current_ids
@@ -159,6 +214,7 @@ class Simulator:
                     feature_contexts.get(train.train_no, {}),
                 )
                 train.predicted_delay_min = predict_delay(features)
+                train.prediction_context = get_pattern(train, self.sim_time)
             train.calculate_priority_score(self.sim_time)
 
             if train.status == TrainStatus.WAITING:
@@ -331,6 +387,8 @@ class Simulator:
         service_no = self.service_counter + 1
         train_def = copy.deepcopy(base)
         train_def["train_no"] = f"{base['train_no']}-{service_no:03d}"
+        train_def["base_train_no"] = base["train_no"]
+        train_def["trip_id"] = train_def["train_no"]
         train_def["name"] = f"{base['name']} #{service_no}"
 
         platform = self.platform_mgr.assign_platform(origin, train_def["train_no"])
@@ -352,8 +410,17 @@ class Simulator:
 
     def apply_controller_decision(self, decision_id: str, winner_train: str, held_trains: list[str], section: str):
         """Hold lower-priority trains until the approved winner clears the conflict section."""
+        # Ensure the approved winner is free to move: release any prior hold on the winner
+        if winner_train in self.controller_holds:
+            self._release_controller_hold(
+                winner_train,
+                f"Movement authority granted through {section}; prior hold released.",
+            )
+
         applied = []
         for train_no in held_trains:
+            if train_no == winner_train:
+                continue
             train = self.trains_by_no.get(train_no)
             if not train or train.status == TrainStatus.COMPLETED:
                 continue
@@ -361,6 +428,7 @@ class Simulator:
                 "decision_id": decision_id,
                 "winner_train": winner_train,
                 "section": section,
+                "release_condition": "Automatic release when the preferred train clears this logical section or the conflict is no longer active.",
                 "reason": f"Controller hold: giving {winner_train} movement authority through {section}",
             }
             train.status = TrainStatus.HELD
@@ -402,19 +470,55 @@ class Simulator:
         return released
 
     def _release_completed_controller_holds(self):
+        released = []
         for train_no, hold in list(self.controller_holds.items()):
             if hold.get("manual"):
                 continue
             winner = self.trains_by_no.get(hold["winner_train"])
-            if (
+
+            # 1. Winner has cleared the section, completed, or reached station approach
+            winner_cleared = (
                 not winner
                 or winner.status in (TrainStatus.COMPLETED, TrainStatus.AT_PLATFORM)
                 or self._section_name(winner) != hold["section"]
-            ):
+                or winner.progress >= 0.95
+            )
+
+            # 2. Check for circular / mutual hold deadlock:
+            # If the winner train is itself held waiting for this train, break the deadlock
+            is_mutual_hold = False
+            if winner and winner.train_no in self.controller_holds:
+                winner_hold = self.controller_holds[winner.train_no]
+                if winner_hold.get("winner_train") == train_no:
+                    is_mutual_hold = True
+
+            # 3. Starvation safeguard for held train
+            held_train = self.trains_by_no.get(train_no)
+            minutes_waited = 0
+            if held_train and held_train.wait_started_at:
+                minutes_waited = max(0, (self.sim_time - held_train.wait_started_at).total_seconds() / 60)
+
+            if winner_cleared:
                 self._release_controller_hold(
                     train_no,
                     f"Controller hold released: {hold['winner_train']} cleared {hold['section']}",
                 )
+                released.append(train_no)
+            elif is_mutual_hold:
+                # Release the winner so it can move forward and clear the section
+                self._release_controller_hold(
+                    winner.train_no,
+                    f"Deadlock broken: releasing {winner.train_no} to clear {hold['section']}",
+                )
+                released.append(winner.train_no)
+            elif minutes_waited >= 15:
+                self._release_controller_hold(
+                    train_no,
+                    f"Starvation safeguard: hold released after {int(minutes_waited)} min.",
+                )
+                released.append(train_no)
+
+        return released
 
     def _release_controller_hold(self, train_no: str, reason: str):
         self.controller_holds.pop(train_no, None)
@@ -429,15 +533,27 @@ class Simulator:
         return f"{endpoints[0]} <-> {endpoints[1]}"
 
     def get_state(self) -> dict:
+        for train in self.trains:
+            train.prediction_context = get_pattern(train, self.sim_time)
+        next_train = self._select_next_train()
+        if next_train is None:
+            next_train = self._next_service_preview()
+            next_train.update({
+                "eta_minutes": self._estimate_next_departure_minutes(),
+                "eta_at": self.next_departure_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "selection_rule": "scheduled_departure",
+                "reason": "Fallback preview of the next scheduled service.",
+            })
         return {
-            "sim_time": self.sim_time.strftime("%Y-%m-%d %H:%M"),
+            "sim_time": self.sim_time.strftime("%Y-%m-%d %H:%M:%S"),
             "paused": self.paused,
             "speed_multiplier": self.speed_multiplier,
             "trains": [t.to_dict(self.sim_time) for t in self.trains],
             "platforms": self.platform_mgr.snapshot(),
             "controller_holds": self.controller_holds,
-            "next_departure_time": self.next_departure_time.strftime("%Y-%m-%d %H:%M"),
+            "next_departure_time": self.next_departure_time.strftime("%Y-%m-%d %H:%M:%S"),
             "next_departure_service": self._next_service_preview(),
+            "next_train": next_train,
         }
 
     def get_analytics(self) -> dict:
@@ -459,7 +575,12 @@ class Simulator:
         base = TRAINS[self.service_counter % len(TRAINS)]
         return {
             "train_no": f"{base['train_no']}-{self.service_counter + 1:03d}",
+            "base_train_no": base["train_no"],
             "name": base["name"],
             "origin": base["route"][0],
             "destination": base["route"][-1],
         }
+
+    def _estimate_next_departure_minutes(self) -> float:
+        remaining = max(0.0, (self.next_departure_time - self.sim_time).total_seconds() / 60.0)
+        return round(remaining, 1)

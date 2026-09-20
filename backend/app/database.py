@@ -15,7 +15,7 @@ at every stage of your setup:
 
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -24,6 +24,26 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 _firestore_client = None
 _use_memory_fallback = False
 _memory_log = []  # used only in fallback mode
+
+
+def _normalize_sim_timestamp(sim_timestamp) -> str:
+    if isinstance(sim_timestamp, datetime):
+        return sim_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    text = str(sim_timestamp).strip()
+    if len(text) == 16:
+        return f"{text}:00"
+    return text
+
+
+def _sort_logs(entries: list[dict]) -> list[dict]:
+    return sorted(
+        entries,
+        key=lambda entry: (
+            entry.get("sim_timestamp_sort", entry.get("sim_timestamp", "")),
+            entry.get("created_at", ""),
+        ),
+        reverse=True,
+    )
 
 
 def init_db():
@@ -75,16 +95,21 @@ def init_db():
 
 
 def log_decision(sim_timestamp: str, conflict_type: str, trains_involved: list,
-                  action_taken: str, reason: str, resolved_by: str):
+                  action_taken: str, reason: str, resolved_by: str,
+                  decision_context: dict | None = None):
+    normalized_timestamp = _normalize_sim_timestamp(sim_timestamp)
     entry = {
-        "sim_timestamp": sim_timestamp,
+        "sim_timestamp": normalized_timestamp,
+        "sim_timestamp_sort": normalized_timestamp,
         "conflict_type": conflict_type,
         "trains_involved": trains_involved,
         "action_taken": action_taken,
         "reason": reason,
         "resolved_by": resolved_by,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    if decision_context:
+        entry["decision_context"] = decision_context
 
     if _use_memory_fallback or _firestore_client is None:
         _memory_log.insert(0, entry)
@@ -104,18 +129,21 @@ def get_logs(train_no: str = None, limit: int = 100) -> list:
         results = _memory_log
         if train_no:
             results = [e for e in results if train_no in e.get("trains_involved", [])]
-        return results[:limit]
+        return _sort_logs(results)[:limit]
 
     try:
         query = _firestore_client.collection("decision_log").order_by(
-            "created_at", direction="DESCENDING"
+            "sim_timestamp_sort", direction="DESCENDING"
         ).limit(limit)
         if train_no:
             query = query.where("trains_involved", "array_contains", train_no)
-        return [doc.to_dict() for doc in query.stream()]
+        return _sort_logs([doc.to_dict() for doc in query.stream()])
     except Exception as e:
         print(f"[database] Firestore read failed ({e}), returning in-memory log instead.")
-        return _memory_log[:limit]
+        results = _memory_log
+        if train_no:
+            results = [e for e in results if train_no in e.get("trains_involved", [])]
+        return _sort_logs(results)[:limit]
 
 
 init_db()

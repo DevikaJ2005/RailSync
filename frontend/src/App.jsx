@@ -6,9 +6,6 @@ import AdminPanel from './admin/AdminPanel.jsx'
 import UserPanel from './user/UserPanel.jsx'
 import LoginScreen from './LoginScreen.jsx'
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
-
 export default function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -18,13 +15,6 @@ export default function App() {
   const [networkError, setNetworkError] = useState('')
   const [connected, setConnected] = useState(false)
   const [modelInfo, setModelInfo] = useState(null)
-  const [systemTime, setSystemTime] = useState(() => new Date())
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setSystemTime(new Date()), 1000)
-    return () => window.clearInterval(timer)
-  }, [])
-
   useEffect(() => {
     const session = loadSession()
     if (!session) {
@@ -47,6 +37,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return
     let cancelled = false
+    let retryTimer = null
     const loadNetwork = () => {
       api
         .getNetwork()
@@ -54,6 +45,10 @@ export default function App() {
           if (!cancelled) {
             setNetwork(data)
             setNetworkError('')
+            if (retryTimer) {
+              window.clearInterval(retryTimer)
+              retryTimer = null
+            }
           }
         })
         .catch((error) => {
@@ -62,14 +57,16 @@ export default function App() {
     }
     loadNetwork()
     api.getModelInfo().then(setModelInfo).catch(() => {})
-    const retryTimer = window.setInterval(loadNetwork, 3000)
+    retryTimer = window.setInterval(loadNetwork, 3000)
     const ws = connectLiveSocket(setLiveState, setConnected)
     return () => {
       cancelled = true
-      window.clearInterval(retryTimer)
+      if (retryTimer) window.clearInterval(retryTimer)
       ws.close()
     }
   }, [user])
+
+  const refreshLiveState = () => api.getState().then(setLiveState).catch(() => {})
 
   const handleLogin = async (username, password) => {
     setLoginError('')
@@ -101,13 +98,17 @@ export default function App() {
     return <LoginScreen onLogin={handleLogin} error={loginError} />
   }
 
-  const systemClockTime = systemTime.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
-  const systemClockDate = `${WEEKDAYS[systemTime.getDay()]}, ${String(systemTime.getDate()).padStart(2, '0')} ${MONTHS[systemTime.getMonth()]} ${systemTime.getFullYear()}`
+  const simulationClockTime = liveState?.sim_time
+    ? liveState.sim_time.slice(11, 16)
+    : '--:--'
+  const simulationClockDate = liveState?.sim_time
+    ? new Date(liveState.sim_time.replace(' ', 'T')).toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).toUpperCase()
+    : 'SIMULATION STARTING'
 
   return (
     <div className="app-shell">
@@ -123,21 +124,17 @@ export default function App() {
           </button>
         </div>
         <div className="system-clock">
-          <div className="system-clock-head">
-            {connected ? (
-              <span className="online-flag"><span className="online-dot" />SYSTEM ONLINE</span>
-            ) : (
-              <span className="offline-flag">● OFFLINE</span>
-            )}
-            <span className="system-clock-time">◷ {systemClockTime}</span>
+          <div className="simulation-clock">
+            <span className="clock-label">SIMULATION TIME</span>
+            <span className="simulation-clock-time">{simulationClockTime}</span>
           </div>
-          <div className="system-clock-date">{systemClockDate}</div>
+          <div className="system-clock-date">{simulationClockDate}</div>
         </div>
       </div>
 
       <div className="main-area">
         {user.role === 'controller' ? (
-          <AdminPanel liveState={liveState} network={network} networkError={networkError} connected={connected} modelInfo={modelInfo} />
+          <AdminPanel liveState={liveState} network={network} networkError={networkError} connected={connected} modelInfo={modelInfo} onActionComplete={refreshLiveState} />
         ) : (
           <UserPanel liveState={liveState} network={network} networkError={networkError} connected={connected} />
         )}

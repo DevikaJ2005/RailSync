@@ -12,9 +12,10 @@ const PANEL_MIN_WIDTH = 300
 const PANEL_MAX_WIDTH = 600
 const PANEL_DEFAULT_WIDTH = 380
 
-export default function AdminPanel({ liveState, network, networkError, connected, modelInfo }) {
+export default function AdminPanel({ liveState, network, networkError, connected, modelInfo, onActionComplete }) {
   const [activeTab, setActiveTab] = useState('Conflicts')
   const [selectedStation, setSelectedStation] = useState(null)
+  const [selectedConflictId, setSelectedConflictId] = useState(null)
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH)
   const [resizing, setResizing] = useState(false)
   const stopResizeRef = useRef(null)
@@ -53,7 +54,12 @@ export default function AdminPanel({ liveState, network, networkError, connected
     setActiveTab('Station')
   }
 
-  const activeConflictCount = liveState?.resolutions?.length || 0
+  const activeConflictCount = (liveState?.conflicts || []).filter((item) => item.conflict_status === 'active').length
+
+  useEffect(() => {
+    const currentIds = new Set((liveState?.resolutions || []).map((item) => item.conflict_id || item.decision_id))
+    if (selectedConflictId && !currentIds.has(selectedConflictId)) setSelectedConflictId(null)
+  }, [liveState, selectedConflictId])
 
   return (
     <>
@@ -63,6 +69,9 @@ export default function AdminPanel({ liveState, network, networkError, connected
           networkError={networkError}
           liveState={liveState}
           onStationClick={handleStationClick}
+          selectedConflictId={selectedConflictId}
+          conflicts={liveState?.conflicts || []}
+          resolutions={liveState?.resolutions || []}
           interactive
           panelWidth={panelWidth}
         />
@@ -72,7 +81,6 @@ export default function AdminPanel({ liveState, network, networkError, connected
           <span className="legend-item"><span className="legend-dot" style={{ background: '#E8A23D' }} />Waiting</span>
           <span className="legend-item"><span className="legend-dot" style={{ background: '#D64545' }} />Held</span>
           <span className="legend-item"><span className="legend-dot" style={{ background: '#3FA66B' }} />At platform</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: '#6B7787' }} />Completed</span>
         </div>
       </div>
 
@@ -108,7 +116,14 @@ export default function AdminPanel({ liveState, network, networkError, connected
         </div>
         <div className="scroll-area">
           {activeTab === 'Station' && <StationDetail station={selectedStation} liveState={liveState} network={network} />}
-          {activeTab === 'Conflicts' && <ConflictPanel liveState={liveState} />}
+          {activeTab === 'Conflicts' && (
+            <ConflictPanel
+              liveState={liveState}
+              selectedConflictId={selectedConflictId}
+              onSelectConflict={setSelectedConflictId}
+              onActionComplete={onActionComplete}
+            />
+          )}
           {activeTab === 'Log' && <DecisionLog />}
           {activeTab === 'Analytics' && (
             <>
@@ -118,6 +133,7 @@ export default function AdminPanel({ liveState, network, networkError, connected
               </div>
             </>
           )}
+
         </div>
       </div>
     </>

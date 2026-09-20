@@ -62,7 +62,16 @@ Stations are defined in `backend/app/network.py` with:
 
 ### Sections
 
-Sections define the route graph between stations with:
+Sections define the route graph between stations as logical railway network
+segments used for simulation and movement projection. A section is not one
+physical railway track. The current prototype does not represent individual
+track counts or IDs, direction-specific track allocation, track capacity,
+signalling, block sections, headway requirements, route selection, junction
+routing, or crossing/turnout constraints. Therefore, a section overlap means
+overlapping simulated occupancy of the same logical section, not a confirmed
+physical track conflict.
+
+Each logical section contains:
 
 - section id
 - source station

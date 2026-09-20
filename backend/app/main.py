@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
+import json
 import os
 import threading
 from contextlib import suppress
@@ -17,15 +19,17 @@ from pydantic import BaseModel, Field
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from app.auth import authenticate, issue_token, verify_token
-from app.conflict_detection import detect_section_conflicts
+from app.conflict_detection import detect_all_conflicts
 from app.database import get_logs, log_decision
-from app.llm_narration import narrate_decision
 from app.model_loader import (
     get_feature_importance,
     get_model_metrics,
+    get_model_status,
     get_model_scope,
     is_model_loaded,
 )
+from app.historical_patterns import dataset_summary
+from app.llm_narration import narrate_decision, narrate_log_event
 from app.models import TrainStatus
 from app.network import network_payload
 from app.resolver import resolve_conflicts
@@ -73,7 +77,7 @@ simulator = Simulator()
 approved_decisions: set[str] = set()
 rejected_decisions: set[str] = set()
 logged_decisions: set[str] = set()
-narrated_decisions: dict[str, str] = {}
+narrated_decisions: dict[str, dict] = {}
 
 _state_lock = threading.RLock()
 _live_state: dict | None = None
@@ -83,7 +87,7 @@ _simulation_task: asyncio.Task | None = None
 def _compute_full_state() -> dict:
     """Create one state payload and record only genuine simulated events."""
     sim_state = simulator.get_state()
-    conflicts = detect_section_conflicts(sim_state)
+    conflicts = detect_all_conflicts(sim_state)
     simulator.observe_conflicts(conflicts)
     resolutions = resolve_conflicts(conflicts, sim_state)
 
@@ -96,32 +100,134 @@ def _compute_full_state() -> dict:
             if decision_id in rejected_decisions
             else "pending"
         )
-        if decision_id in narrated_decisions:
-            resolution["reason"] = narrated_decisions[decision_id]
-        elif decision_id not in logged_decisions:
-            resolution["reason"] = narrate_decision(resolution["reason"])
-            narrated_decisions[decision_id] = resolution["reason"]
-            logged_decisions.add(decision_id)
-            log_decision(
-                sim_timestamp=sim_state["sim_time"],
-                conflict_type="section",
-                trains_involved=[resolution["winner_train"]] + resolution["held_trains"],
-                action_taken="rule_based_recommendation",
-                reason=resolution["reason"],
-                resolved_by="simulation",
-            )
+        narration = _narrate_resolution(resolution)
+        resolution.update(narration)
 
     for event in simulator.platform_mgr.pop_events():
+        train_no = event["train_no"]
+        train_obj = simulator.trains_by_no.get(train_no)
+        station_name = event.get("station") or (train_obj.current_to if train_obj else None)
+        if not station_name and " at " in event["detail"]:
+            station_name = event["detail"].split(" at ")[-1].strip()
+        decision_context = {
+            "event_type": "PLATFORM_UNAVAILABLE" if event["type"] == "held" else "OPERATIONAL_EVENT",
+            "reason_type": "platform_unavailable" if event["type"] == "held" else "platform_event",
+            "train_no": train_no,
+            "station": station_name or "the station",
+            "section": station_name or "the station",
+            "hold_trains": [train_no] if event["type"] == "held" else [],
+            "selected_train": None,
+            "trains_involved": [train_no],
+        }
+        narration = narrate_log_event({"event": {
+            "simulation_time": sim_state["sim_time"],
+            "trains_involved": [train_no],
+            "action": event["type"],
+            "reason": event["detail"],
+            "source": "simulation",
+            **decision_context,
+        }})
+        decision_context.update({
+            "explanation": narration["explanation"],
+            "explanation_source": narration["source"],
+        })
         log_decision(
             sim_timestamp=sim_state["sim_time"],
             conflict_type=event["type"],
-            trains_involved=[event["train_no"]],
+            trains_involved=[train_no],
             action_taken=event["type"],
             reason=event["detail"],
             resolved_by="simulation",
+            decision_context=decision_context,
         )
 
     return {**sim_state, "conflicts": conflicts, "resolutions": resolutions}
+
+
+def _narration_context(resolution: dict) -> dict:
+    evidence = resolution.get("decision_evidence", {})
+    conflict_type = "projected" if resolution.get("conflict_status") == "predicted" else "active"
+    section_formatted = resolution.get("section", "").replace(" <-> ", " → ")
+    trains_profiles = evidence.get("trains_involved_profiles") or [
+        {
+            "train_id": t_no,
+            "status": "Moving",
+            "train_type": "Express" if t_no == resolution["winner_train"] else "Passenger",
+            "waiting_minutes": 0,
+            "predicted_delay_min": pred.get("predicted_delay_min", 0),
+        }
+        for t_no, pred in resolution.get("train_predictions", {}).items()
+    ]
+    return {
+        "event_type": "RECOMMENDATION",
+        "conflict_type": conflict_type,
+        "section": section_formatted,
+        "trains_involved": trains_profiles,
+        "selected_train": resolution["winner_train"],
+        "hold_trains": resolution["held_trains"],
+        "unaffected_trains": resolution.get("unaffected_trains", []),
+        "reason_type": evidence.get("reason_type", "operational_class"),
+        "reason": evidence.get("operational_summary") or resolution["reason"],
+        "decision_policy": evidence.get("policy", "class_first_starvation_aware"),
+        "expected_overlap_minutes": resolution.get("expected_overlap_minutes"),
+        "controller_action": None,
+        "conflict": {
+            "conflict_id": resolution.get("conflict_id"),
+            "section": resolution["section"],
+            "status": resolution["conflict_status"],
+            "risk": resolution["risk"],
+            "overlap_minutes": resolution["expected_overlap_minutes"],
+            "projected_timing": resolution["predicted_arrivals"],
+            "direction_relation": resolution.get("direction_relation", "unknown"),
+            "train_movements": resolution.get("train_movements", {}),
+        },
+        "trains": [
+            {
+                "id": train_no,
+                "predicted_delay_min": prediction["predicted_delay_min"],
+                "historical_average_delay_min": prediction["prediction_context"].get("historical_average_delay_min"),
+                "historical_sample_count": prediction["prediction_context"].get("historical_sample_count", 0),
+                "priority_score": resolution["winner_priority_score"] if train_no == resolution["winner_train"] else resolution["held_priority_scores"].get(train_no),
+            }
+            for train_no, prediction in resolution.get("train_predictions", {}).items()
+        ],
+        "recommendation": {
+            "action": resolution["action"],
+            "proceed_train": resolution["winner_train"],
+            "held_trains": resolution["held_trains"],
+            "unaffected_trains": resolution.get("unaffected_trains", []),
+            "hold_reasons": evidence.get("hold_reasons", {}),
+        },
+        "decision_evidence": evidence,
+    }
+
+
+def _narration_cache_key(resolution: dict) -> str:
+    """Cache narration only while all explanatory decision facts are unchanged."""
+    evidence = resolution.get("decision_evidence", {})
+    payload = {
+        "event_type": "RECOMMENDATION",
+        "conflict_id": resolution.get("conflict_id"),
+        "section": resolution.get("section"),
+        "selected_train": resolution.get("winner_train"),
+        "hold_trains": sorted(resolution.get("held_trains", [])),
+        "unaffected_trains": sorted(resolution.get("unaffected_trains", [])),
+        "conflict_status": resolution.get("conflict_status", "active"),
+        "reason_type": evidence.get("reason_type"),
+        "reason": resolution.get("reason"),
+        "overlap": resolution.get("expected_overlap_minutes"),
+        "direction": resolution.get("direction_relation"),
+    }
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return f"{resolution['decision_id']}:{digest}"
+
+
+def _narrate_resolution(resolution: dict) -> dict:
+    cache_key = _narration_cache_key(resolution)
+    if cache_key not in narrated_decisions:
+        narrated_decisions[cache_key] = narrate_decision(_narration_context(resolution))
+    logged_decisions.add(resolution["decision_id"])
+    return narrated_decisions[cache_key]
 
 
 def _refresh_live_state() -> dict:
@@ -171,6 +277,7 @@ def health():
         "status": "ok",
         "service": "RailSync backend",
         "model_loaded": is_model_loaded(),
+        "model_status": get_model_status(),
         "scope": get_model_scope(),
     }
 
@@ -214,11 +321,18 @@ def get_analytics(payload: dict = Depends(require_role("controller"))):
 def model_info():
     return {
         "model_loaded": is_model_loaded(),
+        "model_status": get_model_status(),
         "model_name": "XGBoost synthetic delay regressor",
         "scope": get_model_scope(),
         "metrics": get_model_metrics(),
         "feature_importance": get_feature_importance(),
+        "data": dataset_summary(),
     }
+
+
+@app.get("/api/model-status")
+def model_status():
+    return get_model_status()
 
 
 @app.get("/api/logs")
@@ -231,6 +345,31 @@ class WhatIfRequest(BaseModel):
     extra_delay_minutes: float = Field(ge=0, le=240)
 
 
+class LogExplainRequest(BaseModel):
+    sim_timestamp: str
+    conflict_type: str = ""
+    trains_involved: list[str] = []
+    action_taken: str = ""
+    reason: str = ""
+    resolved_by: str = ""
+    decision_context: dict = {}
+
+
+@app.post("/api/logs/explain")
+def explain_log(request: LogExplainRequest, payload: dict = Depends(require_role("controller"))):
+    context = {
+        "event": {
+            "simulation_time": request.sim_timestamp,
+            "trains": request.trains_involved,
+            "action": request.action_taken,
+            "reason": request.reason,
+            "source": request.resolved_by,
+            **request.decision_context,
+        }
+    }
+    return narrate_log_event(context)
+
+
 @app.post("/api/whatif")
 def whatif(request: WhatIfRequest, payload: dict = Depends(require_role("controller"))):
     with _state_lock:
@@ -240,19 +379,11 @@ def whatif(request: WhatIfRequest, payload: dict = Depends(require_role("control
             raise HTTPException(status_code=404, detail="train not found")
         target["predicted_delay_min"] += request.extra_delay_minutes
 
-        conflicts = detect_section_conflicts(snapshot)
+        conflicts = detect_all_conflicts(snapshot)
         resolutions = resolve_conflicts(conflicts, snapshot)
         total_projected_delay = sum(train["predicted_delay_min"] for train in snapshot["trains"])
-        # Narrate each projected resolution's reason via the LLM (OpenRouter/MiniMax or Ollama fallback)
-        for resolution in resolutions:
-            decision_id = resolution["decision_id"]
-            if decision_id in narrated_decisions:
-                resolution["reason"] = narrated_decisions[decision_id]
-            else:
-                resolution["reason"] = narrate_decision(resolution["reason"])
-                narrated_decisions[decision_id] = resolution["reason"]
         log_decision(
-            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M"),
+            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M:%S"),
             conflict_type="what_if",
             trains_involved=[request.train_no],
             action_taken="simulated_delay",
@@ -287,7 +418,7 @@ class ApprovalRequest(BaseModel):
 def approve_decision(request: ApprovalRequest, payload: dict = Depends(require_role("controller"))):
     with _state_lock:
         sim_state = simulator.get_state()
-        current_resolutions = resolve_conflicts(detect_section_conflicts(sim_state), sim_state)
+        current_resolutions = resolve_conflicts(detect_all_conflicts(sim_state), sim_state)
         matching = next((item for item in current_resolutions if item["decision_id"] == request.decision_id), None)
         if matching is None:
             raise HTTPException(status_code=409, detail="recommendation is no longer active")
@@ -312,13 +443,41 @@ def approve_decision(request: ApprovalRequest, payload: dict = Depends(require_r
             action = "controller_rejected_or_released_recommendation"
             reason = request.controller_note or "Controller rejected or released the simulated rule-based recommendation."
 
+        evidence = matching.get("decision_evidence", {})
+        decision_context = {
+            "event_type": "CONTROLLER_ACTION",
+            "section": matching["section"].replace(" <-> ", " → "),
+            "conflict_status": matching["conflict_status"],
+            "conflict_type": "projected" if matching["conflict_status"] == "predicted" else "active",
+            "selected_train": matching["winner_train"],
+            "hold_trains": matching["held_trains"],
+            "unaffected_trains": matching.get("unaffected_trains", []),
+            "reason_type": evidence.get("reason_type", "operational_class"),
+            "reason_text": evidence.get("operational_summary") or matching.get("reason", ""),
+            "controller_action": "approved" if request.approved else "rejected",
+            "decision_evidence": evidence,
+        }
+        narration = narrate_log_event({"event": {
+            "simulation_time": simulator.sim_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "trains_involved": [matching["winner_train"]] + matching["held_trains"],
+            "action": action,
+            "reason": reason,
+            "source": "controller",
+            **decision_context,
+        }})
+        decision_context.update({
+            "explanation": narration["explanation"],
+            "explanation_source": narration["source"],
+        })
+
         log_decision(
-            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M"),
+            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M:%S"),
             conflict_type="section",
             trains_involved=[matching["winner_train"]] + matching["held_trains"],
             action_taken=action,
             reason=reason,
             resolved_by="controller",
+            decision_context=decision_context,
         )
         _refresh_live_state()
 
@@ -373,16 +532,40 @@ def override(request: OverrideRequest, payload: dict = Depends(require_role("con
         if not success:
             return {"success": False, "error": error, "train_no": request.train_no, "action": request.action}
 
+        decision_context = {
+            "event_type": "HOLD" if request.action == "hold_train" else "RESUME" if request.action == "release_manual_hold" else "CONTROLLER_ACTION",
+            "train_no": request.train_no,
+            "station": train.current_to if train else None,
+            "section": f"{train.current_from} → {train.current_to}" if train else None,
+            "hold_trains": [request.train_no] if request.action == "hold_train" else [],
+            "selected_train": request.train_no if request.action == "release_manual_hold" else None,
+            "trains_involved": [request.train_no],
+            "reason_type": "manual_hold" if request.action == "hold_train" else "manual_resume" if request.action == "release_manual_hold" else "force_proceed",
+        }
+        narration = narrate_log_event({"event": {
+            "simulation_time": simulator.sim_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "trains_involved": [request.train_no],
+            "action": request.action,
+            "reason": request.admin_note or f"Controller override: {request.action}",
+            "source": "controller",
+            **decision_context,
+        }})
+        decision_context.update({
+            "explanation": narration["explanation"],
+            "explanation_source": narration["source"],
+        })
+
         log_decision(
-            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M"),
+            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M:%S"),
             conflict_type="admin_override",
             trains_involved=[request.train_no],
             action_taken=request.action,
             reason=request.admin_note or f"Controller override: {request.action}",
             resolved_by="controller",
+            decision_context=decision_context,
         )
         _refresh_live_state()
-        new_conflicts = detect_section_conflicts(simulator.get_state())
+        new_conflicts = detect_all_conflicts(simulator.get_state())
 
     return {
         "success": True,
@@ -401,7 +584,7 @@ def pause_sim(payload: dict = Depends(require_role("controller"))):
     with _state_lock:
         simulator.pause()
         log_decision(
-            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M"),
+            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M:%S"),
             conflict_type="simulation_control",
             trains_involved=[],
             action_taken="pause",
@@ -417,7 +600,7 @@ def resume_sim(payload: dict = Depends(require_role("controller"))):
     with _state_lock:
         simulator.resume()
         log_decision(
-            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M"),
+            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M:%S"),
             conflict_type="simulation_control",
             trains_involved=[],
             action_taken="resume",
@@ -437,7 +620,7 @@ def reset_sim(payload: dict = Depends(require_role("controller"))):
         logged_decisions.clear()
         narrated_decisions.clear()
         log_decision(
-            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M"),
+            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M:%S"),
             conflict_type="simulation_control",
             trains_involved=[],
             action_taken="reset",
@@ -445,7 +628,7 @@ def reset_sim(payload: dict = Depends(require_role("controller"))):
             resolved_by="controller",
         )
         _refresh_live_state()
-    return {"reset": True, "sim_time": simulator.sim_time.strftime("%Y-%m-%d %H:%M")}
+    return {"reset": True, "sim_time": simulator.sim_time.strftime("%Y-%m-%d %H:%M:%S")}
 
 
 @app.post("/api/simulation/speed")
@@ -453,7 +636,7 @@ def set_speed(request: SpeedRequest, payload: dict = Depends(require_role("contr
     with _state_lock:
         simulator.set_speed(request.multiplier)
         log_decision(
-            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M"),
+            sim_timestamp=simulator.sim_time.strftime("%Y-%m-%d %H:%M:%S"),
             conflict_type="simulation_control",
             trains_involved=[],
             action_taken="set_speed",

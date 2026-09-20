@@ -55,7 +55,7 @@ export default function WhatIfSimulator({ liveState }) {
             Projected conflicts: {result.projected_conflicts.length}
           </div>
           {result.projected_resolutions.map((r, i) => (
-            <div key={i} className="reason-text" style={{ marginTop: 6 }}>• {r.reason}</div>
+            <div key={i} className="reason-text" style={{ marginTop: 6 }}>• {r.explanation || r.reason}</div>
           ))}
         </div>
       )}

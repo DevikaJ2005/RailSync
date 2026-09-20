@@ -68,7 +68,12 @@ export const api = {
   getState: () => req('/api/state'),
   getAnalytics: () => req('/api/analytics'),
   getLogs: (trainNo) => req(`/api/logs${trainNo ? `?train_no=${trainNo}` : ''}`),
+  explainLog: (entry) => req('/api/logs/explain', {
+    method: 'POST',
+    body: JSON.stringify(entry),
+  }),
   getModelInfo: () => req('/api/model-info'),
+  getModelStatus: () => req('/api/model-status'),
   whatIf: (trainNo, extraMinutes) =>
     req('/api/whatif', {
       method: 'POST',

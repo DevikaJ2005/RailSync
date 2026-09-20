@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 90" width="24" height="90">
+  <defs>
+    <!-- Rich Indian Railways Maroon / Red livery gradient -->
+    <linearGradient id="irMaroon" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#450A0A"/>
+      <stop offset="12%" stop-color="#991B1B"/>
+      <stop offset="50%" stop-color="#B91C1C"/>
+      <stop offset="88%" stop-color="#991B1B"/>
+      <stop offset="100%" stop-color="#450A0A"/>
+    </linearGradient>
+    <linearGradient id="irRoof" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="50%" stop-color="#64748B"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+  </defs>
+
+  <!-- === CAR 1: ELECTRIC LOCOMOTIVE (WAP-4 style) === -->
+  <!-- Dark underframe drop shadow -->
+  <rect x="2" y="3" width="20" height="40" rx="3" fill="#020617" opacity="0.6"/>
+
+  <!-- Locomotive box body with dark perimeter outline -->
+  <path d="M 5 4 L 19 4 Q 21 5 21 9 L 21 41 L 3 41 L 3 9 Q 3 5 5 4 Z"
+        fill="url(#irMaroon)" stroke="#0F172A" stroke-width="1"/>
+
+  <!-- High-visibility yellow warning pilot band on nose -->
+  <path d="M 3.5 8 L 20.5 8 L 20.5 12 L 3.5 12 Z" fill="#FACC15"/>
+
+  <!-- Windshields -->
+  <rect x="5" y="5.5" width="6" height="3" rx="0.5" fill="#020617"/>
+  <rect x="13" y="5.5" width="6" height="3" rx="0.5" fill="#020617"/>
+  <rect x="5.5" y="6" width="5" height="1.8" fill="#7DD3FC" opacity="0.85"/>
+  <rect x="13.5" y="6" width="5" height="1.8" fill="#7DD3FC" opacity="0.85"/>
+
+  <!-- Twin central and marker headlights -->
+  <circle cx="6" cy="4.5" r="1.3" fill="#FEF08A"/>
+  <circle cx="6" cy="4.5" r="0.8" fill="#FFFFFF"/>
+  <circle cx="18" cy="4.5" r="1.3" fill="#FEF08A"/>
+  <circle cx="18" cy="4.5" r="0.8" fill="#FFFFFF"/>
+
+  <!-- Cream twin side bands -->
+  <rect x="3.2" y="14" width="1.6" height="26" fill="#FEF08A"/>
+  <rect x="19.2" y="14" width="1.6" height="26" fill="#FEF08A"/>
+
+  <!-- Heavy roof equipment / dynamic brake resistors -->
+  <rect x="6.5" y="14" width="11" height="15" rx="1.5" fill="url(#irRoof)" stroke="#1E293B" stroke-width="0.6"/>
+  <line x1="8" y1="17" x2="16" y2="17" stroke="#1E293B" stroke-width="0.6"/>
+  <line x1="8" y1="20" x2="16" y2="20" stroke="#1E293B" stroke-width="0.6"/>
+  <line x1="8" y1="23" x2="16" y2="23" stroke="#1E293B" stroke-width="0.6"/>
+
+  <!-- Diamond / articulated red pantograph -->
+  <line x1="7" y1="33" x2="17" y2="33" stroke="#DC2626" stroke-width="1" stroke-linecap="round"/>
+  <line x1="8" y1="30" x2="16" y2="36" stroke="#475569" stroke-width="0.8"/>
+  <line x1="16" y1="30" x2="8" y2="36" stroke="#475569" stroke-width="0.8"/>
+
+  <!-- Inter-car coupler / gangway -->
+  <rect x="7" y="41" width="10" height="4" fill="#1E293B" stroke="#0F172A" stroke-width="0.8"/>
+  <rect x="8.5" y="41.5" width="7" height="3" fill="#020617"/>
+
+  <!-- === CAR 2: PASSENGER COACH === -->
+  <!-- Dark underframe drop shadow -->
+  <rect x="2" y="45" width="20" height="42" rx="2" fill="#020617" opacity="0.6"/>
+
+  <!-- Coach body with dark perimeter outline -->
+  <rect x="3" y="45" width="18" height="42" rx="1.5" fill="url(#irMaroon)" stroke="#0F172A" stroke-width="1"/>
+
+  <!-- Classic cream window belt line -->
+  <rect x="3.2" y="45" width="1.6" height="42" fill="#FEF08A"/>
+  <rect x="19.2" y="45" width="1.6" height="42" fill="#FEF08A"/>
+
+  <!-- Passenger windows with interior lighting warmth -->
+  <rect x="5.2" y="49" width="2.2" height="33" rx="0.5" fill="#0F172A"/>
+  <rect x="16.6" y="49" width="2.2" height="33" rx="0.5" fill="#0F172A"/>
+  <rect x="5.4" y="50" width="1.6" height="31" fill="#FEF08A" opacity="0.85"/>
+  <rect x="16.8" y="50" width="1.6" height="31" fill="#FEF08A" opacity="0.85"/>
+
+  <!-- Ribbed roof vents -->
+  <rect x="7.5" y="50" width="9" height="15" rx="1" fill="url(#irRoof)" stroke="#1E293B" stroke-width="0.5"/>
+  <rect x="7.5" y="68" width="9" height="15" rx="1" fill="url(#irRoof)" stroke="#1E293B" stroke-width="0.5"/>
+
+  <!-- Rear red marker lamps -->
+  <circle cx="6" cy="85.5" r="1.1" fill="#EF4444"/>
+  <circle cx="18" cy="85.5" r="1.1" fill="#EF4444"/>
+</svg>

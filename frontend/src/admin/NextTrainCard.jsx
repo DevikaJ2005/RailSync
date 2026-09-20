@@ -15,19 +15,42 @@ function TrainIcon() {
   )
 }
 
-function formatEta(value) {
-  if (!value) return '—'
+function parseSimTime(value) {
+  if (!value) return null
   const parsed = new Date(String(value).replace(' ', 'T'))
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatEta(etaValue, simValue) {
+  const eta = parseSimTime(etaValue)
+  const sim = parseSimTime(simValue)
+  if (!eta) return '—'
+  if (!sim) {
+    return eta.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  }
+
+  const diffMinutes = Math.round((eta.getTime() - sim.getTime()) / 60000)
+  const sameDay = eta.toDateString() === sim.toDateString()
+  if (diffMinutes < 0) {
+    return `DEPARTED ${Math.abs(diffMinutes)}m AGO`
+  }
+  if (sameDay) {
+    return eta.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  }
+  const dayDelta = Math.round((Date.UTC(eta.getFullYear(), eta.getMonth(), eta.getDate()) - Date.UTC(sim.getFullYear(), sim.getMonth(), sim.getDate())) / 86400000)
+  if (dayDelta === 1) {
+    return `${eta.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} TOMORROW`
+  }
+  return eta.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 export default function NextTrainCard({ liveState, network }) {
-  const service = liveState?.next_departure_service
+  const train = liveState?.next_train
 
   let trainType = null
-  if (service && network?.trains) {
-    const base = network.trains.find((t) => service.train_no.startsWith(`${t.train_no}-`))
+  if (train && network?.trains) {
+    const baseTrainNo = train.base_train_no || train.train_no?.split('-')[0]
+    const base = network.trains.find((item) => item.train_no === baseTrainNo)
     trainType = base?.type ? base.type.toUpperCase() : null
   }
 
@@ -35,29 +58,32 @@ export default function NextTrainCard({ liveState, network }) {
     <div className="next-train-card">
       <div className="ntc-label">
         <span className="ntc-label-dot" />
-        NEXT TRAIN
+        NEXT ARRIVAL
       </div>
-      {service ? (
+      {train ? (
         <>
           <div className="ntc-train">
             <TrainIcon />
-            <span className="ntc-no">{service.train_no}</span>
+            <span className="ntc-no">{train.train_no}</span>
             {trainType && <span className="ntc-type-badge">{trainType}</span>}
           </div>
           <div className="ntc-route">
-            <span className="ntc-station">{service.origin}</span>
+            <span className="ntc-station">{train.origin}</span>
             <span className="ntc-arrow" aria-hidden="true">↓</span>
-            <span className="ntc-station">{service.destination}</span>
+            <span className="ntc-station">{train.destination}</span>
           </div>
           <div className="ntc-meta">
             <div className="ntc-meta-cell">
               <span className="ntc-meta-label">ETA</span>
-              <span className="ntc-meta-value">{formatEta(liveState?.next_departure_time)}</span>
+              <span className="ntc-meta-value">{formatEta(train.eta_at, liveState?.sim_time)}</span>
             </div>
             <div className="ntc-meta-cell">
               <span className="ntc-meta-label">STATUS</span>
-              <span className="ntc-meta-value ntc-status">● ON TIME</span>
+              <span className="ntc-meta-value ntc-status">● {String(train.status || '').replace('_', ' ').toUpperCase()}</span>
             </div>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+            Rule: {train.selection_rule === 'scheduled_departure' ? 'next scheduled departure (no eligible arrival)' : 'earliest predicted arrival'}
           </div>
         </>
       ) : (

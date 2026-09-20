@@ -29,25 +29,29 @@ _feature_cols = None
 _loaded = False
 _metrics: dict = {}
 _fallback_warnings: set[str] = set()
+_fallback_reason = "XGBoost model unavailable"
 
 
 def load_model() -> None:
     """Load compatible artifacts, otherwise leave the simulator usable."""
 
-    global _model, _encoder_artifact, _feature_cols, _loaded, _metrics
+    global _model, _encoder_artifact, _feature_cols, _loaded, _metrics, _fallback_reason
     _model = None
     _encoder_artifact = None
     _feature_cols = None
     _metrics = {}
     _loaded = False
+    _fallback_reason = "XGBoost model unavailable"
 
     model_enabled = os.getenv("DELAY_MODEL_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
     if not model_enabled:
+        _fallback_reason = "XGBoost disabled by DELAY_MODEL_ENABLED"
         print("[model_loader] Delay model disabled by DELAY_MODEL_ENABLED; using heuristic fallback.")
         return
 
     required = (MODEL_PATH, ENCODERS_PATH, FEATURES_PATH)
     if not all(path.exists() for path in required):
+        _fallback_reason = "XGBoost model artifacts are incomplete"
         print("[model_loader] No trained model artifacts found; using heuristic fallback.")
         return
 
@@ -81,8 +85,10 @@ def load_model() -> None:
         _encoder_artifact = encoder_artifact
         _feature_cols = list(feature_cols)
         _loaded = True
+        _fallback_reason = ""
         print("[model_loader] Trained XGBoost delay model loaded.")
     except Exception as error:
+        _fallback_reason = f"XGBoost artifact validation failed: {error}"
         print(f"[model_loader] Model artifact validation failed ({error}); using heuristic fallback.")
 
 
@@ -127,6 +133,8 @@ def _prepare_model_row(features: dict) -> dict:
 
 
 def _warn_and_fallback(message: str, features: dict) -> float:
+    global _fallback_reason
+    _fallback_reason = f"XGBoost inference failed: {message}"
     if message not in _fallback_warnings:
         print(f"[model_loader] {message}; using heuristic fallback.")
         _fallback_warnings.add(message)
@@ -163,7 +171,33 @@ def get_model_scope() -> dict:
     return {
         "prediction": "Synthetic per-section train delay prediction",
         "conflicts": "Simulated section/platform conflicts are detected and resolved by deterministic operational rules.",
+        "forecast_timing": "Current section delay prediction is carried forward as a single forecast offset for future movement projection.",
         "schema_version": SCHEMA_VERSION,
+        "training_status": "Trained artifact loaded from the repository; automatic online retraining is not implemented.",
+    }
+
+
+def get_model_status() -> dict:
+    """Return an honest runtime status without exposing artifact paths."""
+
+    if _loaded:
+        return {
+            "model": "XGBoost",
+            "status": "active",
+            "training_data": "synthetic",
+            "fallback": False,
+            "reason": None,
+            "online_learning": "disabled",
+            "runtime_feedback": "unavailable",
+        }
+    return {
+        "model": "Heuristic",
+        "status": "fallback",
+        "training_data": "synthetic",
+        "fallback": True,
+        "reason": _fallback_reason,
+        "online_learning": "disabled",
+        "runtime_feedback": "unavailable",
     }
 
 
